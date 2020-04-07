@@ -71,7 +71,7 @@ tidyCipher = function( df ){
             pop = new_respop72018 
             ) %>%
     mutate(
-      countyFIPS = fivecharCountyFIPS( countyFIPS ) ,
+      countyFIPS = fivecharCountyFIPS( countyFIPS ) 
     )
   
   # table with daily counts
@@ -79,10 +79,13 @@ tidyCipher = function( df ){
     select( - !! descriptive_cols ,  countyFIPS ) %>%
     pivot_longer( cols = -countyFIPS  , names_to = 'day' , values_to = 'cases' ) %>%
     mutate( date = decipherDate( day ) ,
-            cases = as.integer( cases ) )
-    
+            cases = as.integer( cases ) ,
+            countyFIPS = fivecharCountyFIPS( countyFIPS ) 
+            )
   
-  data = inner_join( d_place , d_data , by = "countyFIPS" )
+  data = inner_join( d_place , d_data , by = "countyFIPS" ) %>%
+    rename( fips = countyFIPS )
+  
   return( data ) 
 }
 

@@ -47,7 +47,7 @@ ui <- material_page(
   # SIDEBAR 
   material_side_nav(
     # image_source = "side_nav.jpeg",  
-    fixed = TRUE,
+    fixed = TRUE ,
     
     # Place side-nav tabs within side-nav
     material_side_nav_tabs(
@@ -62,17 +62,18 @@ ui <- material_page(
     br() , br() ,
     
     material_row( 
-      material_dropdown( "state" , "State", 
-                         choices = c('CT', 'AZ', 'NY' ) , multiple = TRUE )
+      material_dropdown( "statePulldown" , "State", 
+                         choices = NULL , multiple = FALSE )
       ) ,
     br() , br() ,
     
     )  ,
   
    # MAIN window
-    material_row(
+    material_row( align = 'center' , 
         material_file_input( 'dataFile' , 'Select data file*' ) ,
-        textOutput("source")
+        textOutput( "source" ) ,
+        h5( textOutput( "stateTextOutput" ) )
       ) ,
   
    # TAB Modules -- content for main window
@@ -112,39 +113,74 @@ server <- function( input, output, session ) {
       }
     })
     
-   countyData = reactive({
+   allCountyData = reactive({
  
        if ( is.null( data_file() ) ){
           # source: https://github.com/nytimes/covid-19-data
           url =  "https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv"
-          nyt = read_csv( url ) 
-          glimpse( nyt )
-          return( nyt )
-       }
+          data = read_csv( url ) 
+
+       } else { 
      
-        d <- read_excel( data_file() , sheet = "Case Count" ) # data_file() )
-        data  = tidyCipher( d )
-        glimpse( data )
-        return( data )
+         d <- read_excel( data_file() , sheet = "Case Count" ) 
+        
+         if ( "new_county_name" %in% names( d ) ){
+           # print( paste( 'pre-tidy rows' , nrow( d )) )
+           # glimpse( d )
+           data  = tidyCipher( d )
+           print( paste( 'tidy rows' , nrow( data )) )
+           glimpse( data )
+           
+         } else {
+           return( NULL )
+         }
+          
+         # print( paste( 'data rows' , nrow( data )) )
+         return( data )
+       }
      })
    
    states = reactive({ 
-     req( countryData() )
-     countryData() %>% pull( state ) %>% unique 
+     req( allCountyData() )
+     
+     # print('test')
+     # glimpse( allCountyData()  )
+     st = allCountyData() %>% arrange( state ) %>% pull( state ) %>% unique 
+     nrow( st )
+     return( st )
      })
    
-   # observe( states() ,
-   #   update_material_dropdown( 'states' , 
-   #                             choices =  states(), 
-   #                             value = states()[1]
-   #                             )
-   # )
-   # 
-   output$source = renderText( "* Default data from NYT, https://github.com/nytimes/covid-19-data")
-   # Load modules ####
+   selectedCountyData = reactive({
+
+     d = allCountyData()  %>% filter( state %in% input$statePulldown  )
+     return( d )
+   })
+   
+   observeEvent( states()  , {
+     # print( states() )
+     update_material_dropdown( session, input_id = 'statePulldown' ,
+                               choices =  states() ,
+                               value = states()[1]
+                               )
+   })
+
+   # Source information ####
+   sourceText = reactive({
+     if ( is.null( data_file() ) ){
+     sourceText = "* Default data is from NYT https://github.com/nytimes/covid-19-data "
+   } else { 
+       sourceText = "" }
+   })
+   
+   output$source = renderText( sourceText() )
+   
+   output$stateTextOutput = renderText( input$statePulldown )
+  
+  # Load modules ####
   
    callModule( county_data , "countyDataModule" ,
-               data  = countyData() )
+               data  = reactive( selectedCountyData() )
+               )
    
 }
 

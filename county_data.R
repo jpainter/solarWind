@@ -7,74 +7,99 @@ county_data_UI <- function( id ) {
   # Create a namespace function using the provided id
   ns <- NS(id)
   
-  # tagList(
-  # 
-  #   tabsetPanel(type = "tabs",
-  #               
-  #               tabPanel("", 
-  #                        material_file_input( ns('dataFile'), ' Select county data file (.csv)' 
-  #                                      ) 
-  #                        ) , 
-  #                       
                 material_row(
+                  textOutput( ns('stateList')) ,
                   material_column( width = 5, offset = 1 ,
                                    plotlyOutput( ns('chartTS') )
+                                   ) ,
+                  material_column( width = 5, 
+                                   # tableOutput( ns('countyCount') )
+                                   leafletOutput( ns('map') )
                                    )
                   )
-                         
-  #                        ) 
-  # )
+
 }
 
 # Server function ####
-county_data <- function( input, output, session, data ) {
+county_data <- function( input, output, session, data 
+                         , states
+                         ) {
 
-  countyData = reactive({ data })
-  
   countyCount = reactive({
     
-    req( countyData() )
-
-    cd = count( countyData() , state   )
-    
+    # glimpse( data() )
+    req( data() )
+    cd = count( data() , county   )
     return( cd )
 
   }) 
   
-  countyTS = reactive({
-    req( countyData() )
-
-    ts = data_ts( countyData() )
+  dataTS = reactive({
+    req( data() )
+    
+    ts =  data_ts( data() )
   })
   
   # ggplot of time-series
   ggplotTS = reactive({
-     req( countyTS )
-    
-      countyTS() %>% 
-      filter( 
-        # testing
-        row_number() < 100 
-        # state %in% 'CT'
-        ) %>%
-      autoplot( cases  ) +
-      theme_minimal() 
+      
+    req( dataTS() )
+
+    dataTS() %>%
+    autoplot( cases ) +
+    theme_minimal()
+      
   })
 
+  tmapData = reactive({ 
+    req( data() )
+    print( paste( 'data has row' , nrow( data() ) ) )
+    if ( nrow( data() ) == 0 ) return( NULL )
+      
+    # if missing lat/lonfg, add in
+    if ( !all( c('lat', 'long') %in% names( data() ) ) ){
+      geoFIPS = readRDS( 'geoFIPS.rds') %>% select( fips, lat, long  )
+      d = data() %>% left_join( geoFIPS , by = "fips" ) 
+      print( paste( 'd+geo' , nrow( data() ) ) )
+      
+    } else {
+      print( paste( 'd' , nrow( data() ) ) )
+      d = data()
+      glimpse( d )
+    }
     
-### output count of county by state  ####
-
-  output$chartTS = renderPlotly(  ggplotly( ggplotTS() ) )
-    
-  output$variables = renderTable(
-
-    iris %>% colnames ,
-  )
+    dcum = d %>% 
+      group_by( fips , county ) %>% 
+      summarise( 
+        cumCases = sum( cases, na.rm = T ) ,
+        lat = max( lat ) ,
+        long = max( long )
+        ) %>%
+      filter( !is.na( lat ) , !is.na( long ) ) 
   
-  output$countyCount =  renderTable(
+    # convert to sf
+    dsf = st_as_sf( dcum , coords = c( "long", "lat" ) ) 
+
+    return( dsf )
+    }) 
+### outputs ####
+
+  output$chartTS = renderPlotly({ 
+    req( ggplotTS() ) 
+    ggplotly( ggplotTS() )  %>% hide_legend()
+    })
+
+   output$map = renderLeaflet({ 
+      req( tmapData() ) 
+      tm = tm_shape( tmapData() ) + tm_dots( 'cumCases' )
+      tmap_leaflet(tm)
+    })
+   
+  output$countyCount =  renderTable({
     
-    if( nrow( countyCount() ) > 0 )  countyCount()
-  )
+    req( countyCount() )
+    countyCount()
+  })
   
   return( list(  ) )
     
