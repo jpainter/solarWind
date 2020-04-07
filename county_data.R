@@ -52,8 +52,12 @@ county_data <- function( input, output, session, data ) {
      req( countyTS )
     
       countyTS() %>% 
-      filter( state %in% 'CT') %>% 
-      autoplot( cases * 1e5/pop ) +
+      filter( 
+        # testing
+        row_number() < 100 
+        # state %in% 'CT'
+        ) %>%
+      autoplot( cases  ) +
       theme_minimal() 
   })
 

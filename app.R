@@ -44,7 +44,7 @@ ui <- material_page(
     include_fonts = T,
     nav_bar_color = "blue" ,
  
-  # Place side-nav in the beginning of the UI
+  # SIDEBAR 
   material_side_nav(
     # image_source = "side_nav.jpeg",  
     fixed = TRUE,
@@ -59,14 +59,23 @@ ui <- material_page(
       icons = c("insert_chart")
     ) ,
     
-    br() , br() 
+    br() , br() ,
+    
+    material_row( 
+      material_dropdown( "state" , "State", 
+                         choices = c('CT', 'AZ', 'NY' ) , multiple = TRUE )
+      ) ,
+    br() , br() ,
+    
     )  ,
   
+   # MAIN window
     material_row(
-        material_file_input( 'dataFile' , ' Select county data file' ) 
+        material_file_input( 'dataFile' , 'Select data file*' ) ,
+        textOutput("source")
       ) ,
   
-   # Define side-nav tab content
+   # TAB Modules -- content for main window
     material_side_nav_tab_content(
       side_nav_tab_id = "county_data",
       county_data_UI( 'countyDataModule' )
@@ -82,7 +91,7 @@ ui <- material_page(
 
 server <- function( input, output, session ) {
   
-    # stop shiny when browser closes
+  # stop shiny when browser closes
   session$onSessionEnded(function() {
     stopApp()
   })
@@ -97,29 +106,44 @@ server <- function( input, output, session ) {
         inFile <- input$dataFile
     
         inFile$datapath
+        
       } else {
         NULL
-        # "CDC_HotSpot_02APR20.xlsx"
       }
     })
     
    countyData = reactive({
-       req( data_file() )
-       
-       print( data_file() )
-       
-       d <- read_excel( data_file() , sheet = "Case Count" ) # data_file() )
-       
-       data  = tidyCipher( d )
-       
-       # glimpse( data )
-       
+ 
+       if ( is.null( data_file() ) ){
+          # source: https://github.com/nytimes/covid-19-data
+          url =  "https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv"
+          nyt = read_csv( url ) 
+          glimpse( nyt )
+          return( nyt )
+       }
+     
+        d <- read_excel( data_file() , sheet = "Case Count" ) # data_file() )
+        data  = tidyCipher( d )
+        glimpse( data )
         return( data )
      })
    
+   states = reactive({ 
+     req( countryData() )
+     countryData() %>% pull( state ) %>% unique 
+     })
+   
+   # observe( states() ,
+   #   update_material_dropdown( 'states' , 
+   #                             choices =  states(), 
+   #                             value = states()[1]
+   #                             )
+   # )
+   # 
+   output$source = renderText( "* Default data from NYT, https://github.com/nytimes/covid-19-data")
    # Load modules ####
   
-   callModule( county_data , "countyDataModule" , 
+   callModule( county_data , "countyDataModule" ,
                data  = countyData() )
    
 }

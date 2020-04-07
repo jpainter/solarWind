@@ -1,6 +1,7 @@
 
 # test
-# d <- read_excel( "CDC_HotSpot_02APR20.xlsx" , sheet = "Case Count" ) # data_file() )
+# d <- read_excel( "CDC_HotSpot_02APR20.xlsx" , sheet = "Case Count" )
+
 # glimpse(d)
 
 decipherDate = function( x ){ 
@@ -16,8 +17,38 @@ decipherDate = function( x ){
   return( date )
 }
 
+fivecharCountyFIPS = function( x ){
+  ifelse( nchar(x) == 4 , paste0( "0" , x ) , x )
+}
+
+cipher_place = function( df ){
+  # take raw data in wide form and data in long form
+  # 1. Tibble with county names, location, population (d_place)
+  # 2. Tibble with daily counts in long form (d_data)
+  
+  descriptive_cols = c( 'new_county_name' , 'new_state_abbreviation',
+                        'geohash_lat' , 'geohash_long' , 
+                        'new_respop72018' , 'stateFIPS' , 'countyFIPS' 
+          )
+
+  data_cols =  setdiff( names(d), descriptive_cols )
+  
+  # Tibble with county names, location, population
+  d_place = d %>% select( !! descriptive_cols ) %>%
+    rename( county = new_county_name ,
+            state = new_state_abbreviation ,
+            lat = geohash_lat ,
+            long = geohash_long ,
+            pop = new_respop72018 
+            ) %>%
+    mutate(
+      countyFIPS = fivecharCountyFIPS( countyFIPS ) ,
+    )
+  return( d_place ) 
+}
+
 # test 
-# decipherDate( data_cols ) 
+# cipher_place( d ) 
 
 tidyCipher = function( df ){
   # take raw data in wide form and data in long form
@@ -38,13 +69,18 @@ tidyCipher = function( df ){
             lat = geohash_lat ,
             long = geohash_long ,
             pop = new_respop72018 
-            )
+            ) %>%
+    mutate(
+      countyFIPS = fivecharCountyFIPS( countyFIPS ) ,
+    )
   
   # table with daily counts
   d_data = d %>% 
     select( - !! descriptive_cols ,  countyFIPS ) %>%
     pivot_longer( cols = -countyFIPS  , names_to = 'day' , values_to = 'cases' ) %>%
-    mutate( date = decipherDate( day ) ) 
+    mutate( date = decipherDate( day ) ,
+            cases = as.integer( cases ) )
+    
   
   data = inner_join( d_place , d_data , by = "countyFIPS" )
   return( data ) 
