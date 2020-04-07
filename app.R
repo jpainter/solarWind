@@ -2,33 +2,35 @@
 # This is a Shiny web application. You can run the application by clicking
 # the 'Run App' button above.
 
-# Load libraries ####
-library( shiny )
-library( shinyjs )
-library( shinymaterial )
+# Libraries ####
+# Function to test if package is installed
 
-library( tmap )
-library( leaflet )
-library( mapview )
-library( sf )
-library( rmapshaper )
+libraries = readLines( con = file( 'requirements.txt' ) , warn=FALSE )
+libraries = gsub(" ", "" ,  libraries)
 
-library( RColorBrewer )
-library( plotly )
-library( tidyverse )
-library( fabletools ) 
-library( scales )
-library( knitr )
-library( rlang )
-library( stringi )
-library( tidyselect )
-library( knitrProgressBar )
-library( DT )
-library( readxl )
-library( openxlsx  )
-library(readr)
-library( anytime )
-library( lubridate )
+pkgTest <- function( package.list = libraries ){
+
+  missing.packages = setdiff( package.list , rownames( installed.packages() ) )
+
+  if ( length( missing.packages ) > 0 & nchar( missing.packages[1] ) ){
+    print( missing.packages )
+
+        install.packages( missing.packages
+                          # , dependencies = TRUE ,
+                          # , type="source" ,
+                          # , repos = "https://cran.rstudio.com"
+                          )
+    }
+
+}
+
+# Test if packages installed
+pkgTest( libraries )
+
+# load the packages
+suppressMessages(
+  lapply( libraries , require  , character.only = TRUE)
+)
 
 
 # load modules ####
