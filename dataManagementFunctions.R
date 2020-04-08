@@ -95,7 +95,9 @@ tidyCipher = function( df ){
 
 data_ts = function( data ){
   # convert tidy data to time-series (tsibble)
-  ts = as_tsibble( data, key = c(state, county ), index = date )
+  ts = data %>%
+    arrange( state, county, date ) %>%
+    as_tsibble( key = c(state, county ), index = date )
   return( ts )
 }
 

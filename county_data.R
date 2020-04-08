@@ -11,6 +11,7 @@ county_data_UI <- function( id ) {
                   textOutput( ns('stateList')) ,
                   material_column( width = 5, offset = 1 ,
                                    plotlyOutput( ns('chartTS') )
+                                   # plotOutput( ns('chartTS') )
                                    ) ,
                   material_column( width = 5, 
                                    # tableOutput( ns('countyCount') )
@@ -47,7 +48,10 @@ county_data <- function( input, output, session, data
 
     dataTS() %>%
     autoplot( cases ) +
-    theme_minimal()
+    scale_x_date(date_labels = "%m/%d") +
+    theme_minimal() +
+    labs( x = "" ) +
+    guides( color = FALSE )
       
   })
 
@@ -86,6 +90,7 @@ county_data <- function( input, output, session, data
 
   output$chartTS = renderPlotly({ 
     req( ggplotTS() ) 
+    ggplotTS()
     ggplotly( ggplotTS() )  %>% hide_legend()
     })
 
