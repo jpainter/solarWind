@@ -71,7 +71,7 @@ county_data <- function( input, output, session, data
     dcum = d %>% 
       group_by( fips , county ) %>% 
       summarise( 
-        cumCases = sum( cases, na.rm = T ) ,
+        cumCases = max( cases, na.rm = T ) ,
         lat = max( lat ) ,
         long = max( long )
         ) %>%

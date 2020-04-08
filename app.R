@@ -127,12 +127,9 @@ server <- function( input, output, session ) {
          d <- read_excel( data_file() , sheet = "Case Count" ) 
         
          if ( "new_county_name" %in% names( d ) ){
-           # print( paste( 'pre-tidy rows' , nrow( d )) )
-           # glimpse( d )
+
            data  = tidyCipher( d )
-           print( paste( 'tidy rows' , nrow( data )) )
-           glimpse( data )
-           
+ 
          } else {
            return( NULL )
          }
@@ -154,7 +151,8 @@ server <- function( input, output, session ) {
    
    selectedCountyData = reactive({
 
-     d = allCountyData()  %>% filter( state %in% input$statePulldown  )
+     d = allCountyData()  %>% 
+       filter( state %in% input$statePulldown  ) 
      return( d )
    })
    
