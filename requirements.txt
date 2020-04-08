@@ -9,6 +9,9 @@ rmapshaper
 RColorBrewer
 plotly
 tidyverse
+fable
+tsibble
+slider
 fabletools 
 scales
 knitr

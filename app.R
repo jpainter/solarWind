@@ -40,7 +40,7 @@ source( 'dataManagementFunctions.R' )
 # Define UI #####
 ui <- material_page(
 
-    title = "Coronal Spread" ,
+    title = "Solar Wind and Coronal Hot Spots" ,
     nav_bar_fixed = TRUE ,
     useShinyjs(),
     include_fonts = T,
@@ -67,8 +67,19 @@ ui <- material_page(
       material_dropdown( "statePulldown" , "State", 
                          choices = NULL , multiple = FALSE )
       ) ,
-    br() , br() ,
+    br() , 
+    material_row( 
+      material_dropdown( "countyPulldown" , "County", 
+                         choices = NULL , multiple = FALSE )
+      ) ,
+    br() ,
     
+    material_row( 
+      material_dropdown( "variable" , "Variable", 
+                         choices = c( "cumulativeCases" , "dailyCases" ) ,
+                         selected = "cumulativeCases"
+                         )
+      ) 
     )  ,
   
    # MAIN window
@@ -145,24 +156,61 @@ server <- function( input, output, session ) {
      # print('test')
      # glimpse( allCountyData()  )
      st = allCountyData() %>% arrange( state ) %>% pull( state ) %>% unique 
-     nrow( st )
+
      return( st )
      })
-   
-   selectedCountyData = reactive({
-
-     d = allCountyData()  %>% 
-       filter( state %in% input$statePulldown  ) 
-     return( d )
-   })
-   
-   observeEvent( states()  , {
+ 
+  observeEvent( states()  , {
      # print( states() )
      update_material_dropdown( session, input_id = 'statePulldown' ,
                                choices =  states() ,
                                value = states()[1]
                                )
    })
+  
+   counties = reactive({ 
+     req( allCountyData() )
+     req( input$statePulldown )
+
+     cty = allCountyData() %>% 
+       filter( state %in% input$statePulldown) %>% 
+       arrange( county ) %>%
+       pull( county ) %>% unique 
+     
+     return( cty )
+     })
+   
+  observeEvent( counties()  , {
+     # print( states() )
+     update_material_dropdown( session, input_id = 'countyPulldown' ,
+                               choices =  c( 'ALL' , counties() ) ,
+                               value = 'ALL'
+                               )
+   })
+   
+   selectedCountyData = reactive({
+      req( input$countyPulldown  )
+      req( input$variable  )
+     
+     print( input$countyPulldown  )
+     
+     d = allCountyData()  %>% 
+       filter( state %in% input$statePulldown  ) %>% 
+       group_by( state, county ) %>%
+       arrange( state, county, date ) %>%
+       mutate( cumulativeCases = cases ,
+               dailyCases = difference( cumulativeCases )
+          ) %>%
+       mutate( cases = !!rlang::sym( input$variable ) )
+     
+     if ( input$countyPulldown != 'ALL' ){
+       
+          d = filter( d,  county %in% input$countyPulldown )
+     }
+     
+     return( d )
+   })
+   
 
    # Source information ####
    sourceText = reactive({

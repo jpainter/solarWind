@@ -97,7 +97,8 @@ data_ts = function( data ){
   # convert tidy data to time-series (tsibble)
   ts = data %>%
     arrange( state, county, date ) %>%
-    as_tsibble( key = c(state, county ), index = date )
+    as_tsibble( key = c(state, county ), index = date ) 
+  
   return( ts )
 }
 
