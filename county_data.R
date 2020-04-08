@@ -91,7 +91,8 @@ county_data <- function( input, output, session, data
 
    output$map = renderLeaflet({ 
       req( tmapData() ) 
-      tm = tm_shape( tmapData() ) + tm_dots( 'cumCases' )
+      tm = tm_shape( tmapData() ) + 
+        tm_dots( size = 'cumCases' , col = 'cumCases' , alpha = .5 )
       tmap_leaflet(tm)
     })
    
