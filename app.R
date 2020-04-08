@@ -129,7 +129,7 @@ server <- function( input, output, session ) {
          if ( "new_county_name" %in% names( d ) ){
 
            data  = tidyCipher( d )
- 
+           print( paste( 'tidyCipher d ', nrow(data)) )
          } else {
            return( NULL )
          }

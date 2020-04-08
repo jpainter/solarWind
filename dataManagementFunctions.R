@@ -31,10 +31,10 @@ cipher_place = function( df ){
                         'new_respop72018' , 'stateFIPS' , 'countyFIPS' 
           )
 
-  data_cols =  setdiff( names(d), descriptive_cols )
+  data_cols =  setdiff( names(df), descriptive_cols )
   
   # Tibble with county names, location, population
-  d_place = d %>% select( !! descriptive_cols ) %>%
+  d_place = df %>% select( !! descriptive_cols ) %>%
     rename( county = new_county_name ,
             state = new_state_abbreviation ,
             lat = geohash_lat ,
@@ -60,10 +60,10 @@ tidyCipher = function( df ){
                         'new_respop72018' , 'stateFIPS' , 'countyFIPS' 
           )
 
-  data_cols =  setdiff( names(d), descriptive_cols )
+  data_cols =  setdiff( names(df), descriptive_cols )
   
   # Tibble with county names, location, population
-  d_place = d %>% select( !! descriptive_cols ) %>%
+  d_place = df %>% select( !! descriptive_cols ) %>%
     rename( county = new_county_name ,
             state = new_state_abbreviation ,
             lat = geohash_lat ,
@@ -75,7 +75,7 @@ tidyCipher = function( df ){
     )
   
   # table with daily counts
-  d_data = d %>% 
+  d_data = df %>% 
     select( - !! descriptive_cols ,  countyFIPS ) %>%
     pivot_longer( cols = -countyFIPS  , names_to = 'day' , values_to = 'cases' ) %>%
     mutate( date = decipherDate( day ) ,
