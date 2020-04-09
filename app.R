@@ -76,7 +76,10 @@ ui <- material_page(
     
     material_row( 
       material_dropdown( "variable" , "Variable", 
-                         choices = c( "cumulativeCases" , "dailyCases" ) ,
+                         choices = c( "cumulativeCases" , 
+                                      "cumulativeIncidence" ,
+                                      "dailyCases",
+                                      "dailyIncidence") ,
                          selected = "cumulativeCases"
                          )
       ) 
@@ -194,12 +197,24 @@ server <- function( input, output, session ) {
      
      print( input$countyPulldown  )
      
-     d = allCountyData()  %>% 
+    if ( !all( c('lat', 'long') %in% names( allCountyData()  ) ) ){
+      
+      geoFIPS = readRDS( 'geoFIPS.rds') %>% select( fips, lat, long , pop )
+      d = allCountyData()  %>% left_join( geoFIPS , by = "fips" ) 
+      
+    } else {
+      
+      d = allCountyData()
+    }
+     
+     d = d %>% 
        filter( state %in% input$statePulldown  ) %>% 
        group_by( state, county ) %>%
        arrange( state, county, date ) %>%
        mutate( cumulativeCases = cases ,
-               dailyCases = difference( cumulativeCases )
+               cumulativeIncidence = cases * 1e5 / pop ,
+               dailyCases = difference( cumulativeCases ) ,
+               dailyIncidence = dailyCases * 1e5 / pop 
           ) %>%
        mutate( cases = !!rlang::sym( input$variable ) )
      
