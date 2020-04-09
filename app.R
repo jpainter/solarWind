@@ -80,7 +80,7 @@ ui <- material_page(
                                       "cumulativeIncidence" ,
                                       "dailyCases",
                                       "dailyIncidence") ,
-                         selected = "cumulativeCases"
+                         selected = "cumulativeIncidence"
                          )
       ) 
     )  ,
@@ -96,7 +96,7 @@ ui <- material_page(
     material_side_nav_tab_content(
       side_nav_tab_id = "county_data",
       county_data_UI( 'countyDataModule' )
-    )
+    ) 
     
     # , material_side_nav_tab_content(
     #   side_nav_tab_id = "place_holder_2",
@@ -129,49 +129,51 @@ server <- function( input, output, session ) {
       }
     })
     
-   allCountyData = reactive({
- 
-       if ( is.null( data_file() ) ){
-          # source: https://github.com/nytimes/covid-19-data
-          url =  "https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv"
-          data = read_csv( url ) 
-
-       } else { 
-     
-         d <- read_excel( data_file() , sheet = "Case Count" ) 
-        
-         if ( "new_county_name" %in% names( d ) ){
-
-           data  = tidyCipher( d )
-           print( paste( 'tidyCipher d ', nrow(data)) )
-         } else {
-           return( NULL )
-         }
-          
-         # print( paste( 'data rows' , nrow( data )) )
-         return( data )
-       }
-     })
+     allCountyData = reactive({
    
-   states = reactive({ 
-     req( allCountyData() )
-     
-     # print('test')
-     # glimpse( allCountyData()  )
-     st = allCountyData() %>% arrange( state ) %>% pull( state ) %>% unique 
-
-     return( st )
-     })
- 
-  observeEvent( states()  , {
-     # print( states() )
-     update_material_dropdown( session, input_id = 'statePulldown' ,
-                               choices =  states() ,
-                               value = states()[1]
-                               )
-   })
+         if ( is.null( data_file() ) ){
+            # source: https://github.com/nytimes/covid-19-data
+            url =  "https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv"
+            data = read_csv( url ) 
   
-   counties = reactive({ 
+         } else { 
+       
+           d <- read_excel( data_file() , sheet = "Case Count" ) 
+          
+           if ( "new_county_name" %in% names( d ) ){
+  
+             data  = tidyCipher( d )
+             print( paste( 'tidyCipher d ', nrow(data)) )
+             
+           } else {
+             
+             return( NULL )
+           }
+            
+           # print( paste( 'data rows' , nrow( data )) )
+           return( data )
+         }
+       })
+     
+     states = reactive({ 
+       req( allCountyData() )
+       
+       # print('test')
+       # glimpse( allCountyData()  )
+       st = allCountyData() %>% arrange( state ) %>% pull( state ) %>% unique 
+  
+       return( st )
+       })
+ 
+    observeEvent( states()  , {
+       # print( states() )
+       update_material_dropdown( session, input_id = 'statePulldown' ,
+                                 choices =  c( 'US' , states() ) ,
+                                 value = states()[1]
+                                 ) 
+     })
+  
+  counties = reactive({ 
      req( allCountyData() )
      req( input$statePulldown )
 
@@ -191,13 +193,14 @@ server <- function( input, output, session ) {
                                )
    })
    
-   selectedCountyData = reactive({
+  selectedCountyData = reactive({
+    
       req( input$countyPulldown  )
       req( input$variable  )
      
      print( input$countyPulldown  )
      
-    if ( !all( c('lat', 'long') %in% names( allCountyData()  ) ) ){
+     if ( !all( c('lat', 'long') %in% names( allCountyData()  ) ) ){
       
       geoFIPS = readRDS( 'geoFIPS.rds') %>% select( fips, lat, long , pop )
       d = allCountyData()  %>% left_join( geoFIPS , by = "fips" ) 
@@ -207,8 +210,18 @@ server <- function( input, output, session ) {
       d = allCountyData()
     }
      
+     if ( input$statePulldown != 'US' ){
+       
+          d = filter( d , state %in% input$statePulldown  ) 
+     
+     } 
+     
+     if ( input$countyPulldown != 'ALL' ){
+       
+          d = filter( d,  county %in% input$countyPulldown )
+     }
+     
      d = d %>% 
-       filter( state %in% input$statePulldown  ) %>% 
        group_by( state, county ) %>%
        arrange( state, county, date ) %>%
        mutate( cumulativeCases = cases ,
@@ -218,10 +231,24 @@ server <- function( input, output, session ) {
           ) %>%
        mutate( cases = !!rlang::sym( input$variable ) )
      
-     if ( input$countyPulldown != 'ALL' ){
+     # if US, pick top 100 spots
+     if ( input$statePulldown %in% 'US' ){
        
-          d = filter( d,  county %in% input$countyPulldown )
+        top = d %>% 
+         group_by( state, fips ) %>%
+          # Max value
+          # summarise( cases = max( cases , na.rm = TRUE ) ) %>%
+          # latest value
+          arrange( desc( date ) ) %>% filter( row_number() == 1 ) %>%
+         ungroup %>%
+         arrange( desc( cases ) ) %>%
+         select( state, fips ) %>% 
+         filter( row_number() <= 100 ) 
+        
+        d = semi_join( d, top , by = c('state' , 'fips') )
      }
+     
+     glimpse( d )
      
      return( d )
    })
@@ -237,7 +264,11 @@ server <- function( input, output, session ) {
    
    output$source = renderText( sourceText() )
    
-   output$stateTextOutput = renderText( input$statePulldown )
+   output$stateTextOutput = renderText( 
+     if ( input$statePulldown %in% 'US' ){ 
+       "US (top 100 counties)"
+     } else { input$statePulldown }
+   )
   
   # Load modules ####
   

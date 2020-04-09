@@ -15,7 +15,8 @@ county_data_UI <- function( id ) {
                                    ) ,
                   material_column( width = 5, 
                                    # tableOutput( ns('countyCount') )
-                                   leafletOutput( ns('map') )
+                                   leafletOutput( ns('map') ) ,
+                                   "Map displays most recent value"
                                    )
                   )
 
@@ -45,6 +46,8 @@ county_data <- function( input, output, session, data
   ggplotTS = reactive({
       
     req( dataTS() )
+    
+    # glimpse( dataTS) # test
 
     dataTS() %>%
     autoplot( cases ) +
@@ -68,7 +71,7 @@ county_data <- function( input, output, session, data
     } else {
       
       d = data()
-      glimpse( d )
+      # glimpse( d )
     }
     
     d.last = d %>% 
