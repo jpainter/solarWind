@@ -264,6 +264,9 @@ server <- function( input, output, session ) {
         d = semi_join( d, top , by = c('state' , 'fips') )
      }
      
+      # ensure no missing values:  set NA to 0 
+      d$cases[ is.na( d$cases) ] = 0 
+  
      glimpse( d )
      
      return( d )
@@ -283,7 +286,7 @@ server <- function( input, output, session ) {
       if ( input$model %in% 'ETS' ){ 
         m = d %>%
         as_tsibble( key = c(state, county , fips ) , index = date ) %>%
-        model( ets = ETS( cases ) )  %>%
+        model( ets = ETS( log( cases + 1 ) ) )  %>%
         augment %>%
         mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
       }
@@ -291,7 +294,7 @@ server <- function( input, output, session ) {
       if ( input$model %in% 'ARIMA' ){ 
         m = d %>%
         as_tsibble( key = c(state, county , fips ) , index = date ) %>%
-        model( arima = ARIMA( cases ) )  %>%
+        model( arima = ARIMA( log( cases + 1 ) ) )  %>%
         augment %>%
         mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
         }

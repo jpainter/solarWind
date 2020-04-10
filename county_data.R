@@ -46,22 +46,25 @@ county_data <- function( input, output, session, data , model
   ggplotTS = reactive({
       
     req( dataTS() )
-    # req( model() )
-    
     # glimpse( dataTS) # test
 
     g = 
       dataTS() %>%
-      autoplot( cases ) +
-      scale_x_date(date_labels = "%m/%d") +
+      ggplot( aes( x = date, y = cases ,  group = fips ) ) +
+      geom_line() +
+      # autoplot( cases ) +
+      scale_x_date( date_labels = "%m/%d" ) +
       theme_minimal() +
-      labs( x = "" , y = "count") +
-      guides( color = FALSE )
+      labs( x = "" , y = "") 
     
     if ( is_tsibble( model() ) ){
 
       glimpse( model() )
       
+      # Cut offs
+        low.inc.cut = 10
+        slope.cut = 0.1
+  
       m =  model() %>%
         mutate( 
           deriv1 = difference( y , lag = 1 ) ,
@@ -70,7 +73,7 @@ county_data <- function( input, output, session, data , model
                 deriv1.7dave > -slope.cut & deriv1.7dave < slope.cut ~ 'plateau' ,
                 deriv1.7dave >= slope.cut ~ "growing" ,
                 deriv1.7dave <= -slope.cut ~ "declining"
-                )  %>% factor
+                )  
         )
       
       print( 'chart m'); 
@@ -78,10 +81,18 @@ county_data <- function( input, output, session, data , model
       
       g = g + 
         # fitted line
-        geom_line( data = m , aes( y = y , color = cat ) , linetype = "dashed")
+        # geom_line( data = m , aes( y = y , color = cat , group = 1 ) ) +
+        geom_segment( data = m ,
+                      aes(x = date, xend = lead( date ), 
+                          y = y, yend = lead( y ) , color = cat )
+        ) +
+        scale_color_manual( 
+          values = c( "growing" = "red", "plateau" = "blue" , "declining" = "green") ,
+          )
+                   # linetype = "dashed" ) 
         
         # 7 day average of first derivative of fitted values
-        geom_line( data = m , aes( y = deriv1.7dave ) ,linetype = "dotted") 
+        # geom_line( data = m , aes( y = deriv1.7dave ) ,linetype = "dotted") 
       
         # autolayer( m , y , linetype = "dashed" , color = cat ) +
         # autolayer(  m , deriv1 , linetype = "dashed" ) +
@@ -122,7 +133,7 @@ county_data <- function( input, output, session, data , model
 
   output$chartTS = renderPlotly({ 
     req( ggplotTS() ) 
-    ggplotTS()
+    # ggplotTS() 
     ggplotly( ggplotTS() )  # %>% hide_legend()
     })
 
