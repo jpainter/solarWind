@@ -23,8 +23,7 @@ county_data_UI <- function( id ) {
 }
 
 # Server function ####
-county_data <- function( input, output, session, data 
-                         , states
+county_data <- function( input, output, session, data , model 
                          ) {
 
   countyCount = reactive({
@@ -42,21 +41,52 @@ county_data <- function( input, output, session, data
     ts =  data_ts( data() )
   })
   
+
   # ggplot of time-series
   ggplotTS = reactive({
       
     req( dataTS() )
+    # req( model() )
     
     # glimpse( dataTS) # test
 
-    dataTS() %>%
-    autoplot( cases ) +
-    scale_x_date(date_labels = "%m/%d") +
-    theme_minimal() +
-    labs( x = "" , y = "count") +
-    guides( color = FALSE )
+    g = 
+      dataTS() %>%
+      autoplot( cases ) +
+      scale_x_date(date_labels = "%m/%d") +
+      theme_minimal() +
+      labs( x = "" , y = "count") +
+      guides( color = FALSE )
+    
+    if ( is_tsibble( model() ) ){
+
+      glimpse( model() )
       
-  })
+      m =  model() %>%
+        mutate( 
+          deriv1 = difference( y , lag = 1 ) ,
+          deriv1.7dave = slider::slide_dbl( deriv1 , mean , .before = 6 ) ,
+          cat = case_when(  
+                deriv1.7dave > -slope.cut & deriv1.7dave < slope.cut ~ 'plateau' ,
+                deriv1.7dave >= slope.cut ~ "growing" ,
+                deriv1.7dave <= -slope.cut ~ "declining"
+                )  %>% factor
+        )
+      
+      print( 'chart m'); 
+      glimpse( m )
+      
+      g = g + 
+        geom_line( data = m , aes( y = y , color = cat ) , linetype = "dashed") +
+        geom_line( data = m , aes( y = deriv1.7dave ) ,linetype = "dotted") 
+      
+        # autolayer( m , y , linetype = "dashed" , color = cat ) +
+        # autolayer(  m , deriv1 , linetype = "dashed" ) +
+        # autolayer(  m , deriv1.7dave , linetype = "dashed" ) 
+
+    }
+      return( g )
+  }) 
 
   tmapData = reactive({ 
     req( data() )

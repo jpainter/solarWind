@@ -82,8 +82,22 @@ ui <- material_page(
                                       "dailyIncidence") ,
                          selected = "cumulativeIncidence"
                          )
-      ) 
-    )  ,
+      ) ,
+    br() , 
+    
+    # Models
+    material_row( 
+      material_checkbox( "modelYN" , "Add Model", 
+                         initial_value = FALSE
+                         )
+      ) ,
+    material_row( 
+      material_dropdown( "model" , "Model type", 
+                         choices = c( "ARIMA" ,"ETS" , "Spline") ,
+                         selected = "Spline"
+                         )
+      )
+     )  ,
   
    # MAIN window
     material_row( align = 'center' , 
@@ -97,11 +111,7 @@ ui <- material_page(
       side_nav_tab_id = "county_data",
       county_data_UI( 'countyDataModule' )
     ) 
-    
-    # , material_side_nav_tab_content(
-    #   side_nav_tab_id = "place_holder_2",
-    #   tags$h1("wait for it")
-    # ) 
+
 )
 
 # Server ####
@@ -171,6 +181,9 @@ server <- function( input, output, session ) {
                                  choices =  c( 'US' , states() ) ,
                                  value = states()[1]
                                  ) 
+      
+      # turn of model
+      update_material_checkbox( session, input_id = "modelYN" , value = FALSE )
      })
   
   counties = reactive({ 
@@ -200,6 +213,7 @@ server <- function( input, output, session ) {
      
      print( input$countyPulldown  )
      
+     # if needed, add Lat/Long and pop
      if ( !all( c('lat', 'long') %in% names( allCountyData()  ) ) ){
       
       geoFIPS = readRDS( 'geoFIPS.rds') %>% select( fips, lat, long , pop )
@@ -239,11 +253,11 @@ server <- function( input, output, session ) {
           # Max value
           # summarise( cases = max( cases , na.rm = TRUE ) ) %>%
           # latest value
-          arrange( desc( date ) ) %>% filter( row_number() == 1 ) %>%
+         arrange( desc( date ) ) %>% filter( row_number() == 1 ) %>%
          ungroup %>%
          arrange( desc( cases ) ) %>%
          select( state, fips ) %>% 
-         filter( row_number() <= 100 ) 
+         filter( row_number() <= 100 ) # top 100 
         
         d = semi_join( d, top , by = c('state' , 'fips') )
      }
@@ -253,6 +267,56 @@ server <- function( input, output, session ) {
      return( d )
    })
    
+  
+  modelData = reactive({
+    req( selectedCountyData() )
+    
+    d = selectedCountyData() %>% filter( row_number() <150 ) 
+    
+    print( input$model )
+    
+    if ( input$modelYN ){
+      
+      # ETS
+      if ( input$model %in% 'ETS' ){ 
+        m = d %>%
+        as_tsibble( key = c(state, county , fips ) , index = date ) %>%
+        model( ets = ETS( cases ) )  %>%
+        augment %>%
+        mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
+      }
+      
+      if ( input$model %in% 'ARIMA' ){ 
+        m = d %>%
+        as_tsibble( key = c(state, county , fips ) , index = date ) %>%
+        model( arima = ARIMA( cases ) )  %>%
+        augment %>%
+        mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
+        }
+      
+      # Spline
+      if ( input$model %in% 'Spline' ){ 
+        
+        k.dates = d %>% group_by( state, county , fips , cases ) %>%
+          arrange( desc( date ) ) %>%
+          filter( row_number() == 1 ) %>%
+          pull( date )
+        
+        m = d %>%
+        as_tsibble( key = c(state, county , fips ) , index = date ) %>%
+        model( spline = TSLM( cases ~ trend( knots = k.dates )) )  %>%
+        augment %>%
+        mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) 
+                )
+        }
+
+    } else { m = NA }
+    
+    # print('model')
+    # glimpse( m )
+    
+    return( m )
+  })
 
    # Source information ####
    sourceText = reactive({
@@ -273,7 +337,8 @@ server <- function( input, output, session ) {
   # Load modules ####
   
    callModule( county_data , "countyDataModule" ,
-               data  = reactive( selectedCountyData() )
+               data  = reactive( selectedCountyData() ) ,
+               model  = reactive( modelData() )
                )
    
 }
