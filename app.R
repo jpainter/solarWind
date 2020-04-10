@@ -181,10 +181,12 @@ server <- function( input, output, session ) {
                                  choices =  c( 'US' , states() ) ,
                                  value = states()[1]
                                  ) 
-      
-      # turn of model
-      update_material_checkbox( session, input_id = "modelYN" , value = FALSE )
      })
+    
+    # turn off model when selecting new state
+    observeEvent( input$statePulldown , {
+      update_material_checkbox( session, input_id = "modelYN" , value = FALSE )
+    })
   
   counties = reactive({ 
      req( allCountyData() )
@@ -275,7 +277,7 @@ server <- function( input, output, session ) {
     
     print( input$model )
     
-    if ( input$modelYN ){
+    if ( input$modelYN & input$countyPulldown != 'ALL' ){
       
       # ETS
       if ( input$model %in% 'ETS' ){ 
@@ -297,23 +299,41 @@ server <- function( input, output, session ) {
       # Spline
       if ( input$model %in% 'Spline' ){ 
         
-        k.dates = d %>% group_by( state, county , fips , cases ) %>%
-          arrange( desc( date ) ) %>%
-          filter( row_number() == 1 ) %>%
-          pull( date )
+        # k.dates = d %>% group_by( state, county , fips , cases ) %>%
+        #   arrange( desc( date ) ) %>%
+        #   filter( row_number() == 1 ) %>%
+        #   pull( date )
+        # 
+        # m = d %>%
+        # as_tsibble( key = c(state, county , fips ) , index = date ) %>%
+        # model( spline = TSLM( cases ~ trend( knots = k.dates )) )  %>%
+        # augment %>%
+        # mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) 
+        #         )
         
         m = d %>%
-        as_tsibble( key = c(state, county , fips ) , index = date ) %>%
-        model( spline = TSLM( cases ~ trend( knots = k.dates )) )  %>%
-        augment %>%
-        mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) 
-                )
+        as_tsibble( key = c(state, county , fips ) , index = date ) 
+        
+        t = m %>%
+          select( state, county , fips, date, cases ) %>%
+          group_by( state, county , fips ) %>%
+          nest( data = c(date, cases) ) 
+        
+        tss = t %>% mutate( ss = map( data , 
+                    ~smooth.spline( x = data[[1]]$date , y = data[[1]]$cases , spar = .5 ) )
+) 
+
+        tssa = augment( tss$ss[[1]] ) %>%
+           mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
+        
+        m = bind_cols( m , tssa ) %>%
+          as_tsibble( index = date, key = c(county, state, fips) ) 
         }
 
     } else { m = NA }
     
-    # print('model')
-    # glimpse( m )
+    print('model')
+    glimpse( m )
     
     return( m )
   })

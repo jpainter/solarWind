@@ -77,7 +77,10 @@ county_data <- function( input, output, session, data , model
       glimpse( m )
       
       g = g + 
-        geom_line( data = m , aes( y = y , color = cat ) , linetype = "dashed") +
+        # fitted line
+        geom_line( data = m , aes( y = y , color = cat ) , linetype = "dashed")
+        
+        # 7 day average of first derivative of fitted values
         geom_line( data = m , aes( y = deriv1.7dave ) ,linetype = "dotted") 
       
         # autolayer( m , y , linetype = "dashed" , color = cat ) +
@@ -120,7 +123,7 @@ county_data <- function( input, output, session, data , model
   output$chartTS = renderPlotly({ 
     req( ggplotTS() ) 
     ggplotTS()
-    ggplotly( ggplotTS() )  %>% hide_legend()
+    ggplotly( ggplotTS() )  # %>% hide_legend()
     })
 
    output$map = renderLeaflet({ 
