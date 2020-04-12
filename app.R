@@ -83,8 +83,14 @@ ui <- material_page(
                          selected = "cumulativeIncidence"
                          )
       ) ,
+
+    material_row( 
+      material_slider( "movingAverage" , "Moving average (days)", 
+                         min_value = 0 , max_value = 14 ,
+                       initial_value = 0
+                         )
+      ) ,
     br() , 
-    
     # Models
     material_row( 
       material_checkbox( "modelYN" , "Add Model", 
@@ -238,13 +244,14 @@ server <- function( input, output, session ) {
      }
      
      d = d %>% 
-       group_by( state, county ) %>%
+       group_by( state, county, fips ) %>%
        arrange( state, county, date ) %>%
        mutate( cumulativeCases = cases ,
                cumulativeIncidence = cases * 1e5 / pop ,
                dailyCases = difference( cumulativeCases ) ,
                dailyIncidence = dailyCases * 1e5 / pop 
           ) %>%
+       ungroup() %>%
        mutate( cases = !!rlang::sym( input$variable ) )
      
      # if US, pick top 100 spots
@@ -261,22 +268,33 @@ server <- function( input, output, session ) {
          select( state, fips ) %>% 
          filter( row_number() <= 100 ) # top 100 
         
-        d = semi_join( d, top , by = c('state' , 'fips') )
+        d = semi_join( d, top , by = c('state' , 'fips') ) %>%
+          ungroup() %>%
+          as_tsibble( key = c(state, county, fips ) , index = date ) 
      }
      
-      # ensure no missing values:  set NA to 0 
-      d$cases[ is.na( d$cases) ] = 0 
-  
      glimpse( d )
      
+     print( paste( 'moving average:' , input$movingAverage ))
+     
+     # Moving average
+     d = d %>%
+       mutate( cases = slider::slide_dbl( .$cases, mean,
+                                         .before = input$movingAverage ) )
+
      return( d )
    })
    
   
   modelData = reactive({
     req( selectedCountyData() )
+    # req( input$modelYN )
     
     d = selectedCountyData() %>% filter( row_number() <150 ) 
+    
+    # ensure no missing values:  set NA to 0 
+    d$cases[ is.na( d$cases) ] = 0
+
     
     print( input$model )
     

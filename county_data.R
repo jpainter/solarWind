@@ -70,9 +70,9 @@ county_data <- function( input, output, session, data , model
           deriv1 = difference( y , lag = 1 ) ,
           deriv1.7dave = slider::slide_dbl( deriv1 , mean , .before = 6 ) ,
           cat = case_when(  
-                deriv1.7dave > -slope.cut & deriv1.7dave < slope.cut ~ 'plateau' ,
-                deriv1.7dave >= slope.cut ~ "growing" ,
-                deriv1.7dave <= -slope.cut ~ "declining"
+                deriv1 > -slope.cut & deriv1.7dave < slope.cut ~ 'plateau' ,
+                deriv1 >= slope.cut ~ "growing" ,
+                deriv1 <= -slope.cut ~ "declining"
                 )  
         )
       
@@ -137,12 +137,12 @@ county_data <- function( input, output, session, data , model
     ggplotly( ggplotTS() )  # %>% hide_legend()
     })
 
-   output$map = renderLeaflet({ 
-      req( tmapData() ) 
-      tm = tm_shape( tmapData() ) + 
-        tm_dots( size = 'cases' , col = 'cases' , alpha = .5 )
-      tmap_leaflet( tm )
-    })
+   # output$map = renderLeaflet({
+      # req( tmapData() )
+      # tm = tm_shape( tmapData() ) +
+      #   tm_dots( size = 'cases' , col = 'cases' , alpha = .5 )
+      # tmap_leaflet( tm )
+    # })
    
   output$countyCount =  renderTable({
     
