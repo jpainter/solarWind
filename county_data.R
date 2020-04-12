@@ -4,14 +4,27 @@
 
 # User Interface ####
 county_data_UI <- function( id ) {
+  
+  # leaflet print
+  jsfile <- "https://rawgit.com/rowanwins/leaflet-easyPrint/gh-pages/dist/bundle.js" 
+  tags$head(tags$script(src = jsfile))
+  
   # Create a namespace function using the provided id
   ns <- NS(id)
   
                 material_row(
                   textOutput( ns('stateList')) ,
                   material_column( width = 5, offset = 1 ,
-                                   plotlyOutput( ns('chartTS') )
-                                   # plotOutput( ns('chartTS') )
+                                   plotlyOutput( ns('chartTS') ) ,
+                                   # plotOutput( ns('chartTS') ) ,
+                                   br() ,
+                                   material_slider( ns('slopeCut') ,
+                                                       'Slope cutoff' ,
+                                                       min_value = .01 ,
+                                                       max_value = .2 ,
+                                                       initial_value = .1 ,
+                                                    step_size = .01
+                                                    ) 
                                    ) ,
                   material_column( width = 5, 
                                    # tableOutput( ns('countyCount') )
@@ -63,14 +76,14 @@ county_data <- function( input, output, session, data , model
       
       # Cut offs
         low.inc.cut = 10
-        slope.cut = 0.1
+        slope.cut = input$slopeCut # 0.1
   
       m =  model() %>%
         mutate( 
           deriv1 = difference( y , lag = 1 ) ,
           deriv1.7dave = slider::slide_dbl( deriv1 , mean , .before = 6 ) ,
           cat = case_when(  
-                deriv1 > -slope.cut & deriv1.7dave < slope.cut ~ 'plateau' ,
+                deriv1 > -slope.cut & deriv1 < slope.cut ~ 'plateau' ,
                 deriv1 >= slope.cut ~ "growing" ,
                 deriv1 <= -slope.cut ~ "declining"
                 )  
@@ -141,7 +154,18 @@ county_data <- function( input, output, session, data , model
    req( tmapData() )
    tm = tm_shape( tmapData() ) +
      tm_dots( size = 'cases' , col = 'cases' , alpha = .5 )
-   tmap_leaflet( tm )
+   tmap_leaflet( tm ) 
+   # %>%
+   #   onRender(
+   #        "function(el, x) {
+   #          L.easyPrint({
+   #            sizeModes: ['Current', 'A4Landscape', 'A4Portrait'],
+   #            filename: 'mymap',
+   #            exportOnly: true,
+   #            hideControlContainer: true
+   #          }).addTo(this);
+   #          }"
+   #      )
    })
    
   output$countyCount =  renderTable({
