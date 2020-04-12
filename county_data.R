@@ -137,12 +137,12 @@ county_data <- function( input, output, session, data , model
     ggplotly( ggplotTS() )  # %>% hide_legend()
     })
 
-   # output$map = renderLeaflet({
-      # req( tmapData() )
-      # tm = tm_shape( tmapData() ) +
-      #   tm_dots( size = 'cases' , col = 'cases' , alpha = .5 )
-      # tmap_leaflet( tm )
-    # })
+   output$map = renderLeaflet({
+   req( tmapData() )
+   tm = tm_shape( tmapData() ) +
+     tm_dots( size = 'cases' , col = 'cases' , alpha = .5 )
+   tmap_leaflet( tm )
+   })
    
   output$countyCount =  renderTable({
     

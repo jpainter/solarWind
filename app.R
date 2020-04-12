@@ -39,7 +39,7 @@ source( 'dataManagementFunctions.R' )
 
 # Define UI #####
 ui <- material_page(
-
+    
     title = "Solar Wind and Coronal Hot Spots" ,
     nav_bar_fixed = TRUE ,
     useShinyjs(),
@@ -48,9 +48,10 @@ ui <- material_page(
  
   # SIDEBAR 
   material_side_nav(
+
     # image_source = "side_nav.jpeg",  
     fixed = TRUE ,
-    
+   
     # Place side-nav tabs within side-nav
     material_side_nav_tabs(
       side_nav_tabs = c(
@@ -63,18 +64,21 @@ ui <- material_page(
     
     br() , br() ,
     
-    material_row( 
+    material_row(       style="padding-left: 10px;" ,
+                        
       material_dropdown( "statePulldown" , "State", 
                          choices = NULL , multiple = FALSE )
       ) ,
     br() , 
-    material_row( 
+    material_row(       style="padding-left: 10px;" ,
+                        
       material_dropdown( "countyPulldown" , "County", 
                          choices = NULL , multiple = FALSE )
       ) ,
     br() ,
     
-    material_row( 
+    material_row(       style="padding-left: 10px;" ,
+                        
       material_dropdown( "variable" , "Variable", 
                          choices = c( "cumulativeCases" , 
                                       "cumulativeIncidence" ,
@@ -84,7 +88,8 @@ ui <- material_page(
                          )
       ) ,
 
-    material_row( 
+    material_row(       style="padding-left: 10px;" ,
+                        
       material_slider( "movingAverage" , "Moving average (days)", 
                          min_value = 0 , max_value = 14 ,
                        initial_value = 0
@@ -92,18 +97,20 @@ ui <- material_page(
       ) ,
     br() , 
     # Models
-    material_row( 
+    material_row(       style="padding-left: 10px;" ,
+                        
       material_checkbox( "modelYN" , "Add Model", 
                          initial_value = FALSE
                          )
       ) ,
-    material_row( 
+    material_row(       style="padding-left: 10px;" ,
+                        
       material_dropdown( "model" , "Model type", 
                          choices = c( "ARIMA" ,"ETS" , "Spline") ,
                          selected = "Spline"
                          )
       )
-     )  ,
+     )   ,
   
    # MAIN window
     material_row( align = 'center' , 
