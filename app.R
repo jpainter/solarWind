@@ -62,20 +62,20 @@ ui <- material_page(
       icons = c("insert_chart")
     ) ,
     
-    br() , br() ,
+    # br(), 
     
     material_row(       style="padding-left: 10px;" ,
                         
       material_dropdown( "statePulldown" , "State", 
                          choices = NULL , multiple = FALSE )
       ) ,
-    br() , 
+    # br() , 
     material_row(       style="padding-left: 10px;" ,
                         
       material_dropdown( "countyPulldown" , "County", 
                          choices = NULL , multiple = FALSE )
       ) ,
-    br() ,
+    # br() ,
     
     material_row(       style="padding-left: 10px;" ,
                         
@@ -95,7 +95,7 @@ ui <- material_page(
                        initial_value = 0
                          )
       ) ,
-    br() , 
+    # br() , 
     # Models
     material_row(       style="padding-left: 10px;" ,
                         
