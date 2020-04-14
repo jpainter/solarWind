@@ -79,9 +79,16 @@ tidyCipher = function( df ){
     select( - !! descriptive_cols ,  countyFIPS ) %>%
     pivot_longer( cols = -countyFIPS  , names_to = 'day' , values_to = 'cases' ) %>%
     mutate( date = decipherDate( day ) ,
-            cases = as.integer( cases ) ,
             countyFIPS = fivecharCountyFIPS( countyFIPS ) 
             )
+  
+  if ( 'cases' %in% names( d_data )){
+       d_data %>% mutate( cases = as.integer( cases ) ) 
+  }
+  
+    if ( 'deaths' %in% names( d_data )){
+       d_data %>% mutate( deaths = as.integer( deaths ) ) 
+}
   
   data = inner_join( d_place , d_data , by = "countyFIPS" ) %>%
     rename( fips = countyFIPS )

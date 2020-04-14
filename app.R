@@ -63,38 +63,50 @@ ui <- material_page(
     ) ,
     
     # br(), 
-    
+
     material_row(       style="padding-left: 10px;" ,
+                        
+      material_column( "Location" , width = 12 , 
                         
       material_dropdown( "statePulldown" , "State", 
-                         choices = NULL , multiple = FALSE )
-      ) ,
-    # br() , 
-    material_row(       style="padding-left: 10px;" ,
+                         choices = NULL , multiple = FALSE ) ,
                         
       material_dropdown( "countyPulldown" , "County", 
-                         choices = NULL , multiple = FALSE )
-      ) ,
-    # br() ,
+                         choices = NULL , multiple = FALSE ) ,
+    
+      material_slider( 'top' , "Filter to top...(1-100)" , 
+                     min_value = 1 , max_value = 100 , initial_value = 10 ) 
+    
+    ) ) ,
+    
+    br() ,
     
     material_row(       style="padding-left: 10px;" ,
                         
       material_dropdown( "variable" , "Variable", 
                          choices = c( "cumulativeCases" , 
-                                      "cumulativeIncidence" ,
+                                      "cumulativeCaseIncidence" ,
                                       "dailyCases",
-                                      "dailyIncidence") ,
+                                      "dailyCaseIncidence" ,
+                                      "cumulativeDeaths" , 
+                                      "cumulativeMortality" ,
+                                      "dailyDeaths",
+                                      "dailyMortality") ,
                          selected = "cumulativeIncidence"
                          )
       ) ,
 
     material_row(       style="padding-left: 10px;" ,
                         
-      material_slider( "movingAverage" , "Moving average (days)", 
+      material_column( "Transformations" , width = 12 , 
+        
+        material_checkbox( 'scale' , 'Scale data' , initial_value = FALSE )  ,       
+                        
+        material_slider( "movingAverage" , "Moving average (days)", 
                          min_value = 0 , max_value = 14 ,
                        initial_value = 0
                          )
-      ) ,
+      ) ) ,
     # br() , 
     # Models
     material_row(       style="padding-left: 10px;" ,
@@ -106,7 +118,7 @@ ui <- material_page(
     material_row(       style="padding-left: 10px;" ,
                         
       material_dropdown( "model" , "Model type", 
-                         choices = c( "ARIMA" ,"ETS" , "Spline") ,
+                         choices = c( "ARIMA" ,"ETS" , "STL" , "Spline") ,
                          selected = "Spline"
                          )
       )
@@ -254,15 +266,28 @@ server <- function( input, output, session ) {
        group_by( state, county, fips ) %>%
        arrange( state, county, date ) %>%
        mutate( cumulativeCases = cases ,
-               cumulativeIncidence = cases * 1e5 / pop ,
+               cumulativeCaseIncidence = cases * 1e5 / pop ,
                dailyCases = difference( cumulativeCases ) ,
-               dailyIncidence = dailyCases * 1e5 / pop 
-          ) %>%
+               dailyCaseIncidence = dailyCases * 1e5 / pop 
+          ) 
+     
+     print( paste('has deaths' , 'deaths' %in% names( d )  )) 
+     if ( 'deaths' %in% names( d ) ){
+       d = d %>%
+       mutate( cumulativeDeaths = deaths ,
+               cumulativeMortatliy = deaths * 1e5 / pop ,
+               dailyDeaths = difference( cumulativeDeaths ) ,
+               dailyMortality = dailyDeaths * 1e5 / pop 
+          )
+     }
+     
+     # select Variable
+     d = d %>%
        ungroup() %>%
        mutate( cases = !!rlang::sym( input$variable ) )
      
      # if US, pick top 100 spots
-     if ( input$statePulldown %in% 'US' ){
+     if ( input$countyPulldown %in% 'ALL' ){
        
         top = d %>% 
          group_by( state, fips ) %>%
@@ -273,21 +298,32 @@ server <- function( input, output, session ) {
          ungroup %>%
          arrange( desc( cases ) ) %>%
          select( state, fips ) %>% 
-         filter( row_number() <= 100 ) # top 100 
+         filter( row_number() <= input$top ) # top 100 
         
         d = semi_join( d, top , by = c('state' , 'fips') ) %>%
           ungroup() %>%
           as_tsibble( key = c(state, county, fips ) , index = date ) 
      }
      
-     glimpse( d )
-     
-     print( paste( 'moving average:' , input$movingAverage ))
+     # print( paste( 'moving average:' , input$movingAverage ))
      
      # Moving average
      d = d %>%
-       mutate( cases = slider::slide_dbl( .$cases, mean,
-                                         .before = input$movingAverage ) )
+       # group_by( state, county , fips )  %>%
+       mutate( cases = slider::slide_dbl( .$cases, mean, na.rm = TRUE , 
+                                         .before = input$movingAverage ) 
+               ) %>% ungroup
+     
+     # Scale
+     if (input$scale ){
+           d = d %>%
+             group_by( state, county , fips )  %>%
+             mutate( cases = scale( cases ) ) %>%
+             ungroup
+     }
+     
+    glimpse( d )
+
 
      return( d )
    })
@@ -305,7 +341,8 @@ server <- function( input, output, session ) {
     
     print( input$model )
     
-    if ( input$modelYN & input$countyPulldown != 'ALL' ){
+    # if ( input$modelYN & input$countyPulldown != 'ALL' ){
+    if ( input$modelYN & input$top == 10  ){
       
       # ETS
       if ( input$model %in% 'ETS' ){ 
@@ -314,6 +351,15 @@ server <- function( input, output, session ) {
         model( ets = ETS( log( cases + 1 ) ) )  %>%
         augment %>%
         mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
+      }
+      
+      # STL
+      if ( input$model %in% 'STL' ){ 
+        m = d %>%
+        as_tsibble( key = c(state, county , fips ) , index = date ) %>%
+        model( stl = STL( log( cases + 1 ) ~ trend( window = 7 )) )  %>%
+        components() %>%
+        mutate( y = ifelse( trend < 1 , 0 , exp( trend ) + 1 ) )
       }
       
       if ( input$model %in% 'ARIMA' ){ 
@@ -326,18 +372,6 @@ server <- function( input, output, session ) {
       
       # Spline
       if ( input$model %in% 'Spline' ){ 
-        
-        # k.dates = d %>% group_by( state, county , fips , cases ) %>%
-        #   arrange( desc( date ) ) %>%
-        #   filter( row_number() == 1 ) %>%
-        #   pull( date )
-        # 
-        # m = d %>%
-        # as_tsibble( key = c(state, county , fips ) , index = date ) %>%
-        # model( spline = TSLM( cases ~ trend( knots = k.dates )) )  %>%
-        # augment %>%
-        # mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) 
-        #         )
         
         m = d %>%
         as_tsibble( key = c(state, county , fips ) , index = date ) 

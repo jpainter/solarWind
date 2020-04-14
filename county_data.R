@@ -17,7 +17,7 @@ county_data_UI <- function( id ) {
                   material_column( width = 5, offset = 1 ,
                                    plotlyOutput( ns('chartTS') ) ,
                                    # plotOutput( ns('chartTS') ) ,
-                                   br() ,
+   
                                    material_slider( ns('slopeCut') ,
                                                        'Slope cutoff' ,
                                                        min_value = .01 ,
@@ -51,7 +51,7 @@ county_data <- function( input, output, session, data , model
   dataTS = reactive({
     req( data() )
     
-    ts =  data_ts( data() )
+    ts =  data_ts( data() ) 
   })
   
 
@@ -63,7 +63,10 @@ county_data <- function( input, output, session, data , model
 
     g = 
       dataTS() %>%
-      ggplot( aes( x = date, y = cases ,  group = fips ) ) +
+      mutate( county = paste( county , state , sep = ", ") ) %>%
+      ggplot( aes( x = date, y = cases ,  group = fips , 
+                   label = county )
+              ) +
       geom_line() +
       # autoplot( cases ) +
       scale_x_date( date_labels = "%m/%d" ) +
