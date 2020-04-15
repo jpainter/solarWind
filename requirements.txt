@@ -1,6 +1,7 @@
 shiny
 shinyjs
 shinymaterial
+htmlwidgets
 tmap
 leaflet
 mapview

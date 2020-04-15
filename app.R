@@ -118,7 +118,7 @@ ui <- material_page(
     material_row(       style="padding-left: 10px;" ,
                         
       material_dropdown( "model" , "Model type", 
-                         choices = c( "ARIMA" ,"ETS" , "STL" , "Spline") ,
+                         choices = c( "NNETAR" , "ARIMA" ,"ETS" , "STL" , "TSLM" , "Spline") ,
                          selected = "Spline"
                          )
       )
@@ -362,10 +362,29 @@ server <- function( input, output, session ) {
         mutate( y = ifelse( trend < 1 , 0 , exp( trend ) + 1 ) )
       }
       
+      # ARIMA
       if ( input$model %in% 'ARIMA' ){ 
         m = d %>%
         as_tsibble( key = c(state, county , fips ) , index = date ) %>%
         model( arima = ARIMA( log( cases + 1 ) ) )  %>%
+        augment %>%
+        mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
+      }
+      
+      # NNETAR
+      if ( input$model %in% 'NNETAR' ){ 
+        m = d %>%
+        as_tsibble( key = c(state, county , fips ) , index = date ) %>%
+        model( nnetar = NNETAR( log( cases + 1 ) , period = '1 week' ) )  %>%
+        augment %>%
+        mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
+        }
+      
+      # TSLM
+      if ( input$model %in% 'TSLM' ){ 
+        m = d %>%
+        as_tsibble( key = c(state, county , fips ) , index = date ) %>%
+        model( tslm = TSLM( log( cases + 1 ) ) )  %>%
         augment %>%
         mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
         }

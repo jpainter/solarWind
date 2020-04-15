@@ -1,13 +1,13 @@
 # county_data_module
 
 # Helper functions
-
-# User Interface ####
-county_data_UI <- function( id ) {
   
   # leaflet print
+  ## !! Only works in chrome and firefox
   jsfile <- "https://rawgit.com/rowanwins/leaflet-easyPrint/gh-pages/dist/bundle.js" 
-  tags$head(tags$script(src = jsfile))
+  
+# User Interface ####
+county_data_UI <- function( id ) {
   
   # Create a namespace function using the provided id
   ns <- NS(id)
@@ -27,7 +27,10 @@ county_data_UI <- function( id ) {
                                                     ) 
                                    ) ,
                   material_column( width = 5, 
-                                   # tableOutput( ns('countyCount') )
+                                   
+                                   # leaflet print plugin 
+                                   ## !! Only works in chrome and firefox
+                                   tags$head(tags$script(src = jsfile)) ,
                                    leafletOutput( ns('map') ) ,
                                    "Map displays most recent value"
                                    )
@@ -157,18 +160,17 @@ county_data <- function( input, output, session, data , model
    req( tmapData() )
    tm = tm_shape( tmapData() ) +
      tm_dots( size = 'cases' , col = 'cases' , alpha = .5 )
-   tmap_leaflet( tm ) 
-   # %>%
-   #   onRender(
-   #        "function(el, x) {
-   #          L.easyPrint({
-   #            sizeModes: ['Current', 'A4Landscape', 'A4Portrait'],
-   #            filename: 'mymap',
-   #            exportOnly: true,
-   #            hideControlContainer: true
-   #          }).addTo(this);
-   #          }"
-   #      )
+   tmap_leaflet( tm ) %>%
+     onRender(
+          "function(el, x) {
+            L.easyPrint({
+              sizeModes: ['Current', 'A4Landscape', 'A4Portrait'],
+              filename: 'countyCoronaMap',
+              exportOnly: true,
+              hideControlContainer: false
+            }).addTo(this);
+            }"
+        )
    })
    
   output$countyCount =  renderTable({
