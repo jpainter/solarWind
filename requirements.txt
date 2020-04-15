@@ -9,6 +9,7 @@ rmapshaper
 RColorBrewer
 plotly
 tidyverse
+feasts
 fable
 tsibble
 slider
