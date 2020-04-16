@@ -92,7 +92,8 @@ ui <- material_page(
                                       "cumulativeMortality" ,
                                       "dailyDeaths",
                                       "dailyMortality") ,
-                         selected = "cumulativeIncidence"
+                         selected = "cumulativeCaseIncidence" ,
+                         multiple = TRUE 
                          )
       ) ,
 
@@ -118,8 +119,8 @@ ui <- material_page(
     material_row(       style="padding-left: 10px;" ,
                         
       material_dropdown( "model" , "Model type", 
-                         choices = c( "NNETAR" , "ARIMA" ,"ETS" , "STL" , "TSLM" , "Spline") ,
-                         selected = "Spline"
+                         choices = c( "ARIMA" ,"ETS" , "STL" , "TSLM" , "NNETAR" , "Spline") ,
+                         selected = "NNETAR"
                          )
       )
      )   ,
@@ -282,9 +283,12 @@ server <- function( input, output, session ) {
      }
      
      # select Variable
-     d = d %>%
-       ungroup() %>%
-       mutate( cases = !!rlang::sym( input$variable ) )
+     vars = rlang::syms( input$variable ) 
+     print( 'vars'); print( input$variable )
+     
+     # d = d %>%
+     #   ungroup() %>%
+     #   mutate( cases = !!rlang::sym( input$variable ) )
      
      # if US, pick top 100 spots
      if ( input$countyPulldown %in% 'ALL' ){
@@ -302,28 +306,30 @@ server <- function( input, output, session ) {
         
         d = semi_join( d, top , by = c('state' , 'fips') ) %>%
           ungroup() %>%
+          arrange( state, county , fips , date ) %>%
           as_tsibble( key = c(state, county, fips ) , index = date ) 
      }
      
      # print( paste( 'moving average:' , input$movingAverage ))
      
-     # Moving average
-     d = d %>%
-       # group_by( state, county , fips )  %>%
-       mutate( cases = slider::slide_dbl( .$cases, mean, na.rm = TRUE , 
-                                         .before = input$movingAverage ) 
+    # Moving average
+    d = d %>%
+       group_by( state, county , fips )  %>%
+       mutate_at( vars( !!! vars ) ,
+         ~ slider::slide_dbl( .x, mean, na.rm = TRUE ,
+                                         .before = input$movingAverage )
                ) %>% ungroup
-     
+
+         
      # Scale
      if (input$scale ){
            d = d %>%
              group_by( state, county , fips )  %>%
-             mutate( cases = scale( cases ) ) %>%
-             ungroup
+             mutate_at( vars( !!! vars ) , scale ) %>% ungroup
      }
-     
+    
+    print( 'd' )
     glimpse( d )
-
 
      return( d )
    })
@@ -333,21 +339,22 @@ server <- function( input, output, session ) {
     req( selectedCountyData() )
     # req( input$modelYN )
     
-    d = selectedCountyData() %>% filter( row_number() <150 ) 
+    d = selectedCountyData() %>% 
+      pivot_longer( cols = starts_with( input$variable  ) ) %>%
+      arrange( state, county , fips , name, date ) %>%
+      as_tsibble( key = c(state, county , fips , name ) , index = date )
+    
+    print( 'model d') ; glimpse( d )
     
     # ensure no missing values:  set NA to 0 
-    d$cases[ is.na( d$cases) ] = 0
+    d$value[ is.na( d$value) ] = 0
 
-    
-    print( input$model )
-    
     # if ( input$modelYN & input$countyPulldown != 'ALL' ){
-    if ( input$modelYN & input$top == 10  ){
-      
+    if ( input$modelYN & input$top <= 5  ){
+ 
       # ETS
       if ( input$model %in% 'ETS' ){ 
         m = d %>%
-        as_tsibble( key = c(state, county , fips ) , index = date ) %>%
         model( ets = ETS( log( cases + 1 ) ) )  %>%
         augment %>%
         mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
@@ -356,7 +363,6 @@ server <- function( input, output, session ) {
       # STL
       if ( input$model %in% 'STL' ){ 
         m = d %>%
-        as_tsibble( key = c(state, county , fips ) , index = date ) %>%
         model( stl = STL( log( cases + 1 ) ~ trend( window = 7 )) )  %>%
         components() %>%
         mutate( y = ifelse( trend < 1 , 0 , exp( trend ) + 1 ) )
@@ -365,8 +371,7 @@ server <- function( input, output, session ) {
       # ARIMA
       if ( input$model %in% 'ARIMA' ){ 
         m = d %>%
-        as_tsibble( key = c(state, county , fips ) , index = date ) %>%
-        model( arima = ARIMA( log( cases + 1 ) ) )  %>%
+        model( arima = ARIMA( log( value + 1 ) ) )  %>%
         augment %>%
         mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
       }
@@ -374,46 +379,43 @@ server <- function( input, output, session ) {
       # NNETAR
       if ( input$model %in% 'NNETAR' ){ 
         m = d %>%
-        as_tsibble( key = c(state, county , fips ) , index = date ) %>%
-        model( nnetar = NNETAR( log( cases + 1 ) , period = '1 week' ) )  %>%
+        model( nnetar = NNETAR( log( value + 1 ) , period = '1 week' ) )  %>%
         augment %>%
-        mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
+        mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
         }
       
       # TSLM
       if ( input$model %in% 'TSLM' ){ 
         m = d %>%
-        as_tsibble( key = c(state, county , fips ) , index = date ) %>%
-        model( tslm = TSLM( log( cases + 1 ) ) )  %>%
+        model( tslm = TSLM( log( value + 1 ) ) )  %>%
         augment %>%
         mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
         }
       
       # Spline
       if ( input$model %in% 'Spline' ){ 
-        
-        m = d %>%
-        as_tsibble( key = c(state, county , fips ) , index = date ) 
-        
-        t = m %>%
-          select( state, county , fips, date, cases ) %>%
-          group_by( state, county , fips ) %>%
-          nest( data = c(date, cases) ) 
+       
+        t = d %>%
+          select( state, county , fips, date, name, value  ) %>%
+          group_by( state, county , fips , name ) %>%
+          nest( data = c( date, value ) ) 
         
         tss = t %>% mutate( ss = map( data , 
-                    ~smooth.spline( x = data[[1]]$date , y = data[[1]]$cases , spar = .5 ) )
+                    # ~smooth.spline( x = data[[1]]$date , y = data[[1]]$cases , spar = .5 ) )
+                    ~smooth.spline( x = .x$date , y = .x$cases , spar = .5 ) )                    
 ) 
 
         tssa = augment( tss$ss[[1]] ) %>%
            mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
         
         m = bind_cols( m , tssa ) %>%
-          as_tsibble( index = date, key = c(county, state, fips) ) 
+          arrange( state, county , fips , name , date ) %>%
+          as_tsibble( index = date, key = c( county, state, fips) ) 
         }
 
     } else { m = NA }
     
-    print('model')
+    print('model') ; print( input$model )
     glimpse( m )
     
     return( m )
@@ -439,7 +441,8 @@ server <- function( input, output, session ) {
   
    callModule( county_data , "countyDataModule" ,
                data  = reactive( selectedCountyData() ) ,
-               model  = reactive( modelData() )
+               model  = reactive( modelData() ) ,
+               input_variables = reactive( input$variable )
                )
    
 }

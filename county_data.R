@@ -39,7 +39,8 @@ county_data_UI <- function( id ) {
 }
 
 # Server function ####
-county_data <- function( input, output, session, data , model 
+county_data <- function( input, output, session, data , model , 
+                         input_variables
                          ) {
 
   countyCount = reactive({
@@ -63,15 +64,21 @@ county_data <- function( input, output, session, data , model
       
     req( dataTS() )
     # glimpse( dataTS) # test
+    print( 'input vars') ; print( input_variables() )
+    selected_vars = rlang::syms( input_variables() ) 
 
+    d = dataTS() %>% pivot_longer( cols = starts_with( input_variables()  ) )
+    # print( 'pivot data') ; glimpse( d )
+    
     g = 
-      dataTS() %>%
+      # dataTS() %>%
+      d %>%
       mutate( county = paste( county , state , sep = ", ") ) %>%
-      ggplot( aes( x = date, y = cases ,  group = fips , 
+      ggplot( aes( x = date, y = value ,  group = fips , 
                    label = county )
               ) +
       geom_line() +
-      # autoplot( cases ) +
+      facet_wrap( ~ name , ncol = 1 , scales = 'free' , strip.position = "top") + 
       scale_x_date( date_labels = "%m/%d" ) +
       theme_minimal() +
       labs( x = "" , y = "") 
@@ -84,39 +91,36 @@ county_data <- function( input, output, session, data , model
         low.inc.cut = 10
         slope.cut = input$slopeCut # 0.1
   
-      m =  model() %>%
+      m = model() 
+      
+      m =  m %>%
+        group_by( state, county, fips , name ) %>%
         mutate( 
-          deriv1 = difference( y , lag = 1 ) ,
-          deriv1.7dave = slider::slide_dbl( deriv1 , mean , .before = 6 ) ,
+          deriv1 = difference( value , lag = 1 ) ,
+          lead_x = lead( date ) ,
+          lead_y = lead( value ) ,
+          # deriv1.7dave = slider::slide_dbl( deriv1 , mean , .before = 6 ) ,
           cat = case_when(  
                 deriv1 > -slope.cut & deriv1 < slope.cut ~ 'plateau' ,
                 deriv1 >= slope.cut ~ "growing" ,
                 deriv1 <= -slope.cut ~ "declining"
                 )  
-        )
+        ) %>% ungroup()
       
-      print( 'chart m'); 
+      print( 'chart m' ); 
       glimpse( m )
       
       g = g + 
         # fitted line
         # geom_line( data = m , aes( y = y , color = cat , group = 1 ) ) +
         geom_segment( data = m ,
-                      aes(x = date, xend = lead( date ), 
-                          y = y, yend = lead( y ) , color = cat )
+                      aes(x = date, xend = lead_x , 
+                          y = value, yend = lead_y , color = cat ,
+                          group = fips )
         ) +
         scale_color_manual( 
           values = c( "growing" = "red", "plateau" = "blue" , "declining" = "green") ,
           )
-                   # linetype = "dashed" ) 
-        
-        # 7 day average of first derivative of fitted values
-        # geom_line( data = m , aes( y = deriv1.7dave ) ,linetype = "dotted") 
-      
-        # autolayer( m , y , linetype = "dashed" , color = cat ) +
-        # autolayer(  m , deriv1 , linetype = "dashed" ) +
-        # autolayer(  m , deriv1.7dave , linetype = "dashed" ) 
-
     }
       return( g )
   }) 
