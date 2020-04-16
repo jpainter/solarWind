@@ -55,11 +55,11 @@ ui <- material_page(
     # Place side-nav tabs within side-nav
     material_side_nav_tabs(
       side_nav_tabs = c(
-        "County Data" = "county_data"
-        # , "Place Holder 2" = "place_holder_2"
+        "County Data" = "county_data" 
+        # ,  "Data table" = "data_table"
       ),
       
-      icons = c("insert_chart")
+      icons = c("insert_chart") # "view_list"
     ) ,
     
     # br(), 
@@ -119,7 +119,9 @@ ui <- material_page(
     material_row(       style="padding-left: 10px;" ,
                         
       material_dropdown( "model" , "Model type", 
-                         choices = c( "ARIMA" ,"ETS" , "STL" , "TSLM" , "NNETAR" , "Spline") ,
+                         choices = c( "ARIMA" ,"ETS" , "STL" , 
+                                      # "TSLM" , 
+                                      "NNETAR" , "Spline") ,
                          selected = "NNETAR"
                          )
       )
@@ -137,6 +139,11 @@ ui <- material_page(
       side_nav_tab_id = "county_data",
       county_data_UI( 'countyDataModule' )
     ) 
+  
+   # , material_side_nav_tab_content(
+   #    side_nav_tab_id = "data_table",
+   #    county_data_UI( 'countyDataModule' )
+   #  ) 
 
 )
 
@@ -282,6 +289,9 @@ server <- function( input, output, session ) {
           )
      }
      
+     # TEST
+     # saveRDS( d , 'test_data.rds')
+     
      # select Variable
      vars = rlang::syms( input$variable ) 
      print( 'vars'); print( input$variable )
@@ -355,42 +365,42 @@ server <- function( input, output, session ) {
       # ETS
       if ( input$model %in% 'ETS' ){ 
         m = d %>%
-        model( ets = ETS( log( cases + 1 ) ) )  %>%
+        model( ets = ETS( value ) )  %>%
         augment %>%
-        mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
+        mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
       }
       
       # STL
       if ( input$model %in% 'STL' ){ 
         m = d %>%
-        model( stl = STL( log( cases + 1 ) ~ trend( window = 7 )) )  %>%
+        model( stl = STL( value  ~ trend( window = 7 )) )  %>%
         components() %>%
-        mutate( y = ifelse( trend < 1 , 0 , exp( trend ) + 1 ) )
+        mutate( value = ifelse( trend < 1 , 0 , exp( trend ) + 1 ) )
       }
       
       # ARIMA
       if ( input$model %in% 'ARIMA' ){ 
         m = d %>%
-        model( arima = ARIMA( log( value + 1 ) ) )  %>%
+        model( arima = ARIMA( value  ) )  %>%
         augment %>%
-        mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
+        mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
       }
       
       # NNETAR
       if ( input$model %in% 'NNETAR' ){ 
         m = d %>%
-        model( nnetar = NNETAR( log( value + 1 ) , period = '1 week' ) )  %>%
+        model( nnetar = NNETAR( value, period = '1 week' ) )  %>%
         augment %>%
         mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
         }
       
       # TSLM
-      if ( input$model %in% 'TSLM' ){ 
-        m = d %>%
-        model( tslm = TSLM( log( value + 1 ) ) )  %>%
-        augment %>%
-        mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
-        }
+      # if ( input$model %in% 'TSLM' ){ 
+      #   m = d %>%
+      #   model( tslm = TSLM( value  ) )  %>%
+      #   augment %>%
+      #   mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
+      #   }
       
       # Spline
       if ( input$model %in% 'Spline' ){ 
@@ -400,17 +410,22 @@ server <- function( input, output, session ) {
           group_by( state, county , fips , name ) %>%
           nest( data = c( date, value ) ) 
         
+             
         tss = t %>% mutate( ss = map( data , 
-                    # ~smooth.spline( x = data[[1]]$date , y = data[[1]]$cases , spar = .5 ) )
-                    ~smooth.spline( x = .x$date , y = .x$cases , spar = .5 ) )                    
+                    ~smooth.spline( x = data[[1]]$date , y = data[[1]]$value , spar = .5 ) )
+                    # ~smooth.spline( x = .x$date , y = .x$value , spar = .5 ) )
+                    # ~smooth.spline( x = date , y = value , spar = .5 ) )
 ) 
-
-        tssa = augment( tss$ss[[1]] ) %>%
-           mutate( y = ifelse( .fitted < 1 , 0 , .fitted ) )
+        # print( 'tss' ) ; glimpse( tss ) ; saveRDS( tss, 'tss.rds')
         
-        m = bind_cols( m , tssa ) %>%
+        tssa =  map_df( tss$ss , augment ) %>%
+           mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
+          
+        # print( 'tssa' ) ; glimpse( tssa ) ; saveRDS( tssa, 'tssa.rds')
+        
+        m = bind_cols( d , tssa ) %>%
           arrange( state, county , fips , name , date ) %>%
-          as_tsibble( index = date, key = c( county, state, fips) ) 
+          as_tsibble( index = date, key = c( county, state, fips, name ) ) 
         }
 
     } else { m = NA }
@@ -421,7 +436,7 @@ server <- function( input, output, session ) {
     return( m )
   })
 
-   # Source information ####
+  # Source information ####
    sourceText = reactive({
      if ( is.null( data_file() ) ){
      sourceText = "* Default data is from NYT https://github.com/nytimes/covid-19-data "

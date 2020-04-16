@@ -104,7 +104,8 @@ county_data <- function( input, output, session, data , model ,
                 deriv1 > -slope.cut & deriv1 < slope.cut ~ 'plateau' ,
                 deriv1 >= slope.cut ~ "growing" ,
                 deriv1 <= -slope.cut ~ "declining"
-                )  
+                ),
+          cat = lead( cat ) # geom seg wants previous cat to coincide with slope
         ) %>% ungroup()
       
       print( 'chart m' ); 
