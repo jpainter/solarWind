@@ -275,7 +275,7 @@ server <- function( input, output, session ) {
      if ( 'deaths' %in% names( d ) ){
        d = d %>%
        mutate( cumulativeDeaths = deaths ,
-               cumulativeMortatliy = deaths * 1e5 / pop ,
+               cumulativeMortality = deaths * 1e5 / pop ,
                dailyDeaths = difference( cumulativeDeaths ) ,
                dailyMortality = dailyDeaths * 1e5 / pop 
           )
