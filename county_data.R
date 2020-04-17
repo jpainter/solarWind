@@ -128,7 +128,7 @@ county_data <- function( input, output, session, data , model ,
 
   tmapData = reactive({ 
     req( data() )
-
+    
     if ( nrow( data() ) == 0 ) return( NULL )
       
     # if missing lat/lonfg, add in
@@ -142,9 +142,16 @@ county_data <- function( input, output, session, data , model ,
       # glimpse( d )
     }
     
+    # # Pivot longer
+    print( 'tmap vars') ; print( input_variables()[1] )
+    selected_vars = rlang::syms( input_variables()[1] )
+    
+    # d = d %>% mutate( y = vars( !!! selected_vars ) )
+    print( 'tmap data') ; glimpse( d )
+    
     d.last = d %>% 
-      group_by( fips , county ) %>% 
-      arrange( desc( date ) ) %>%
+      group_by( state, county, fips ) %>% 
+      arrange( state, county, fips , desc( date ) ) %>%
       filter( row_number() == 1 ) %>%
       filter( !is.na( lat ) , !is.na( long ) ) 
   
@@ -163,8 +170,10 @@ county_data <- function( input, output, session, data , model ,
 
    output$map = renderLeaflet({
    req( tmapData() )
+     
    tm = tm_shape( tmapData() ) +
-     tm_dots( size = 'cases' , col = 'cases' , alpha = .5 )
+     tm_dots( id = 'county' , size = 'cases' , col = 'cases' , alpha = .5  )
+   
    tmap_leaflet( tm ) %>%
      onRender(
           "function(el, x) {

@@ -75,7 +75,7 @@ ui <- material_page(
                          choices = NULL , multiple = FALSE ) ,
     
       material_slider( 'top' , "Filter to top...(1-100)" , 
-                     min_value = 1 , max_value = 100 , initial_value = 10 ) 
+                     min_value = 1 , max_value = 100 , initial_value = 5 ) 
     
     ) ) ,
     
@@ -212,7 +212,16 @@ server <- function( input, output, session ) {
              
               print( 'updating usa data')
              
-              if ( !file.exists( 'api.txt' )) material_modal('noApi', title="No API file found")
+              if ( !file.exists( 'api.txt' )){ 
+                
+                output$lastDate = renderText( "API key needed to access data. Looking for key in file, 'api.txt'" )
+ 
+                material_modal('noApi', 
+                               button_text = 'require api key' ,
+                               title="No API file found" )
+                return()
+              }
+                
               
               key = read_lines( 'api.txt' )
               
@@ -548,7 +557,7 @@ server <- function( input, output, session ) {
    
    output$stateTextOutput = renderText( 
      if ( input$statePulldown %in% 'US' ){ 
-       "US (top 100 counties)"
+       paste( "US (top " , input$top , "counties)" )
      } else { input$statePulldown }
    )
   
