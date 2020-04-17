@@ -3,6 +3,31 @@
 # d <- read_excel( "CDC_HotSpot_02APR20.xlsx" , sheet = "Case Count" )
 
 # glimpse(d)
+get = function( source_url , .print = TRUE , ...){
+  
+    # https://stackoverflow.com/questions/57198836
+    httr::set_config(httr::config(ssl_verifypeer=0L))
+    
+    if ( .print ) print( paste( "downloading from" , source_url , "...") )
+    
+    from_url =  GET( source_url ) 
+    
+    if ( from_url$status_code != 200 ) return( FALSE )
+    
+    get_content = content( from_url , "text")
+    
+    # test if return valid content
+    is.json = jsonlite::validate( get_content )
+    
+    if ( !is.json[[1]] ) return( NULL )
+      
+    g = fromJSON( get_content )
+    
+    if ( !is.data.frame(g) ) return( NULL )
+
+    return( g )
+    
+}
 
 decipherDate = function( x ){ 
   x = ifelse( x %in% "2152020...31" , "2142020" , x )

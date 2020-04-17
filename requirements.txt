@@ -1,3 +1,6 @@
+jsonlite
+httr
+curl
 shiny
 shinyjs
 shinymaterial
@@ -27,3 +30,4 @@ openxlsx
 readr
 anytime
 lubridate
+furrr

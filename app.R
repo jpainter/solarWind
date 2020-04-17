@@ -83,7 +83,7 @@ ui <- material_page(
     
     material_row(       style="padding-left: 10px;" ,
                         
-      material_dropdown( "variable" , "Variable", 
+      material_dropdown( "variable" , "Variable (may select multiple)", 
                          choices = c( "cumulativeCases" , 
                                       "cumulativeCaseIncidence" ,
                                       "dailyCases",
@@ -129,9 +129,17 @@ ui <- material_page(
   
    # MAIN window
     material_row( align = 'center' , 
+                  
+      material_column( width = 6 , 
+        textOutput( "source" )  , 
+        # material_button( 'usaFacts' , 'Fetch USA Facts data' ) ,
+        textOutput( "lastDate" ) 
+        ) ,
+     material_column( width = 6 , 
         material_file_input( 'dataFile' , 'Select data file*' ) ,
-        textOutput( "source" ) ,
-        h5( textOutput( "stateTextOutput" ) )
+      ) ,    
+     
+     h5( textOutput( "stateTextOutput" ) ) 
       ) ,
   
    # TAB Modules -- content for main window
@@ -175,10 +183,86 @@ server <- function( input, output, session ) {
      allCountyData = reactive({
    
          if ( is.null( data_file() ) ){
+           
+           # NY times data... no longer used
             # source: https://github.com/nytimes/covid-19-data
-            url =  "https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv"
-            data = read_csv( url ) 
-  
+            # url =  "https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv"
+            # data = get( url ) 
+            
+           # USA Facts
+           # 1. if data file exists, load it.  Display last day available
+         
+           if ( file.exists( 'usaFacts.rds') ){
+             
+             print( 'loading usa data' )
+             usa = readRDS( 'usaFacts.rds' )
+             lastDate = max( usa$date ) 
+             output$lastDate = renderText( paste( "Most recent data:" , as.character(lastDate) ) )
+             
+           } else { 
+             
+             print( 'usa data file not found' )
+             lastDate = ymd( "2020-01-22") 
+             output$lastDate = renderText( "no data" )
+             
+             }
+           
+           # 2. Update missing data 
+           if ( ymd( Sys.Date() ) != lastDate ){
+             
+              print( 'updating usa data')
+             
+              if ( !file.exists( 'api.txt' )) material_modal('noApi', title="No API file found")
+              
+              key = read_lines( 'api.txt' )
+              
+              days = seq( lastDate + days(1) , ymd( Sys.Date() ), by="days" ) 
+              
+              print( 'getting data for this number of days') ; print(length(days))
+              
+              material_modal( 'downloding' , 'ok' , 'Fetching Data from USAFacts' )
+              
+              # Get data via API
+              usa.new = future_map_dfr( days , 
+                                 ~ {
+                                      url =  paste0( "https://data.usafacts.org/covid-nineteen?api-key=" ,
+                                                key , "&date=" , .x  )
+                                      d = get( url ) 
+                                      if ( !is.null(d) ) d = d %>% mutate( date = ymd( .x ) ) 
+                                   
+                                      } , .progress = TRUE 
+              )
+            
+           }
+           
+           if ( exists( 'usa.new' ) ) {
+             
+             print( 'creating updated usa data file' )
+             
+             if ( exists( "usa" ) ){
+               usa = bind_rows( usa , usa.new ) 
+             } else {
+               usa = usa.new
+             }
+             
+             # save data to file 
+             saveRDS( usa , 'usaFacts.rds' )
+           }
+
+           print( 'usa to data' )
+           data = usa %>% 
+              rename( state = stateName , 
+                      county = countName , 
+                      cases = confirmed )  %>%
+              mutate( 
+                countyFipsCode = ifelse( countyFipsCode %in% "" , "000" , countyFipsCode) ,
+                fips = paste0( stateFipsCode , countyFipsCode )
+                ) 
+            
+            print( 'data' ) ; glimpse( data )
+            
+            return( data )
+            
          } else { 
        
            d <- read_excel( data_file() , sheet = "Case Count" ) 
@@ -187,15 +271,14 @@ server <- function( input, output, session ) {
   
              data  = tidyCipher( d )
              print( paste( 'tidyCipher d ', nrow(data)) )
-             
-           } else {
+             return( data )
+           
+             } else {
              
              return( NULL )
            }
-            
-           # print( paste( 'data rows' , nrow( data )) )
-           return( data )
          }
+         
        })
      
      states = reactive({ 
@@ -212,7 +295,7 @@ server <- function( input, output, session ) {
        # print( states() )
        update_material_dropdown( session, input_id = 'statePulldown' ,
                                  choices =  c( 'US' , states() ) ,
-                                 value = states()[1]
+                                 value = 'US'
                                  ) 
      })
     
@@ -248,12 +331,17 @@ server <- function( input, output, session ) {
      
      print( input$countyPulldown  )
      
+     print( 'allCountyData before selection') ; glimpse( allCountyData() )
+     
      # if needed, add Lat/Long and pop
      if ( !all( c('lat', 'long') %in% names( allCountyData()  ) ) ){
-      
+       
       geoFIPS = readRDS( 'geoFIPS.rds') %>% select( fips, lat, long , pop )
+      
       d = allCountyData()  %>% left_join( geoFIPS , by = "fips" ) 
       
+      print( 'allCountyData after adding geo') ; glimpse( d )
+  
     } else {
       
       d = allCountyData()
@@ -261,15 +349,18 @@ server <- function( input, output, session ) {
      
      if ( input$statePulldown != 'US' ){
        
+          print( 'state filter' )
           d = filter( d , state %in% input$statePulldown  ) 
      
      } 
      
      if ( input$countyPulldown != 'ALL' ){
        
+          print( 'county filter' )
           d = filter( d,  county %in% input$countyPulldown )
      }
      
+     print( 'defining variables') 
      d = d %>% 
        group_by( state, county, fips ) %>%
        arrange( state, county, date ) %>%
@@ -294,7 +385,7 @@ server <- function( input, output, session ) {
      
      # select Variable
      vars = rlang::syms( input$variable ) 
-     print( 'vars'); print( input$variable )
+     print( 'vars'); print( input$variable ) ; glimpse( d )
      
      # d = d %>%
      #   ungroup() %>%
@@ -303,16 +394,18 @@ server <- function( input, output, session ) {
      # if US, pick top 100 spots
      if ( input$countyPulldown %in% 'ALL' ){
        
+       print( 'top filter' )
         top = d %>% 
          group_by( state, fips ) %>%
-          # Max value
-          # summarise( cases = max( cases , na.rm = TRUE ) ) %>%
-          # latest value
-         arrange( desc( date ) ) %>% filter( row_number() == 1 ) %>%
+         arrange( desc( date ) ) %>% 
+          filter( row_number() == 1 ) %>% # most recent day
          ungroup %>%
          arrange( desc( cases ) ) %>%
          select( state, fips ) %>% 
          filter( row_number() <= input$top ) # top 100 
+        
+        print( 'pre-tsible ') ; glimpse(top)
+        duplicates( d, key = c( state, county, fips ) , index = date ) 
         
         d = semi_join( d, top , by = c('state' , 'fips') ) %>%
           ungroup() %>%
@@ -323,6 +416,7 @@ server <- function( input, output, session ) {
      # print( paste( 'moving average:' , input$movingAverage ))
      
     # Moving average
+    print( 'moving average')
     d = d %>%
        group_by( state, county , fips )  %>%
        mutate_at( vars( !!! vars ) ,
@@ -366,32 +460,36 @@ server <- function( input, output, session ) {
       if ( input$model %in% 'ETS' ){ 
         m = d %>%
         model( ets = ETS( value ) )  %>%
-        augment %>%
-        mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
+        augment 
+        # %>%
+        # mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
       }
       
       # STL
       if ( input$model %in% 'STL' ){ 
         m = d %>%
         model( stl = STL( value  ~ trend( window = 7 )) )  %>%
-        components() %>%
-        mutate( value = ifelse( trend < 1 , 0 , exp( trend ) + 1 ) )
+        components() 
+        # %>%
+        # mutate( value = ifelse( trend < 1 , 0 , exp( trend ) + 1 ) )
       }
       
       # ARIMA
       if ( input$model %in% 'ARIMA' ){ 
         m = d %>%
         model( arima = ARIMA( value  ) )  %>%
-        augment %>%
-        mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
+        augment 
+        # %>%
+        # mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
       }
       
       # NNETAR
       if ( input$model %in% 'NNETAR' ){ 
         m = d %>%
         model( nnetar = NNETAR( value, period = '1 week' ) )  %>%
-        augment %>%
-        mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
+        augment 
+        # %>%
+        # mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
         }
       
       # TSLM
@@ -439,8 +537,10 @@ server <- function( input, output, session ) {
   # Source information ####
    sourceText = reactive({
      if ( is.null( data_file() ) ){
-     sourceText = "* Default data is from NYT https://github.com/nytimes/covid-19-data "
-   } else { 
+     # sourceText = "* Default data is from NYT https://github.com/nytimes/covid-19-data "
+     sourceText = "Data source is USAFacts (https://data.usafacts.org)"
+   
+     } else { 
        sourceText = "" }
    })
    
