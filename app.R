@@ -72,7 +72,7 @@ ui <- material_page(
                          choices = NULL , multiple = FALSE ) ,
                         
       material_dropdown( "countyPulldown" , "County", 
-                         choices = NULL , multiple = FALSE ) ,
+                         choices = NULL , multiple = TRUE ) ,
     
       material_slider( 'top' , "Filter to top...(1-100)" , 
                      min_value = 1 , max_value = 100 , initial_value = 5 ) 
@@ -123,6 +123,10 @@ ui <- material_page(
                                       # "TSLM" , 
                                       "NNETAR" , "Spline") ,
                          selected = "NNETAR"
+                         ) ,
+      
+      material_checkbox( "forecastYN" , "Add Forecast", 
+                         initial_value = FALSE
                          )
       )
      )   ,
@@ -543,6 +547,34 @@ server <- function( input, output, session ) {
     return( m )
   })
 
+  # FORECASTING 
+    forecastData = reactive({
+    req( selectedCountyData() )
+    
+    if ( input$modelYN & input$forecastYN ){ 
+      d = selectedCountyData() %>%
+        pivot_longer( cols = starts_with( input$variable  ) ) %>%
+        mutate( value = ifelse( is.na( value ) , 0 , value ) ) %>%
+        arrange( state, county , fips , name, date ) %>%
+        as_tsibble( key = c(state, county , fips , name ) , index = date )
+  
+      if ( input$model %in% 'NNETAR' ){
+         print( 'forecast: input model in NNETAR' )
+          
+        m = d %>%
+            model( nnetar = NNETAR( value, period = '1 week' ) )
+          
+        print( m )
+        
+        f = m %>% forecast( h = '2 weeks' , times = 10 ) 
+        print( f ) 
+          
+          } else { return() }
+
+    return( f )
+    } else { return() }
+  })
+    
   # Source information ####
    sourceText = reactive({
      if ( is.null( data_file() ) ){
@@ -566,6 +598,7 @@ server <- function( input, output, session ) {
    callModule( county_data , "countyDataModule" ,
                data  = reactive( selectedCountyData() ) ,
                model  = reactive( modelData() ) ,
+               forecast = reactive( forecastData() ) ,
                input_variables = reactive( input$variable )
                )
    

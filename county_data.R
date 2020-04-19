@@ -40,6 +40,7 @@ county_data_UI <- function( id ) {
 
 # Server function ####
 county_data <- function( input, output, session, data , model , 
+                         forecastData ,
                          input_variables
                          ) {
 
@@ -67,8 +68,12 @@ county_data <- function( input, output, session, data , model ,
     print( 'input vars') ; print( input_variables() )
     selected_vars = rlang::syms( input_variables() ) 
 
-    d = dataTS() %>% pivot_longer( cols = starts_with( input_variables()  ) )
+    d = dataTS() %>% 
+      pivot_longer( cols = starts_with( input_variables()  ) )
     # print( 'pivot data') ; glimpse( d )
+    
+    # Dynamic Facets
+    facets = as.formula( paste( "~", "name") )
     
     g = 
       # dataTS() %>%
@@ -78,11 +83,14 @@ county_data <- function( input, output, session, data , model ,
                    label = county )
               ) +
       geom_line() +
-      facet_wrap( ~ name , ncol = 1 , scales = 'free' , strip.position = "top") + 
+      facet_wrap( facets, 
+                  ncol = 1 , scales = 'free' , 
+                  strip.position = "top" , labeller = label_both ) + 
       scale_x_date( date_labels = "%m/%d" ) +
       theme_minimal() +
       labs( x = "" , y = "") 
     
+    # Add model
     if ( is_tsibble( model() ) ){
 
       glimpse( model() )
@@ -123,6 +131,31 @@ county_data <- function( input, output, session, data , model ,
           values = c( "growing" = "red", "plateau" = "blue" , "declining" = "green") ,
           )
     }
+    
+    # Add forecast
+    if ( is_tsibble( forecastData() ) ){
+
+      print( 'forecastData' )
+      glimpse( forecastData() )
+
+      f = forecastData()  %>% hilo %>% unnest( `95%` )
+
+      print( 'chart f' );
+      glimpse( f )
+
+      g = g +
+        # fitted line
+        # geom_line( data = m , aes( y = y , color = cat , group = 1 ) ) +
+        geom_line( data = f , aes(x = date, y = value , group = fips ) ,
+                   color = 'brown' , alpha=0.5 ) +
+        geom_ribbon( data = f ,
+                     aes( ymin = .lower, ymax = .upper ) , 
+                     color = 'brown' , alpha=0.2 )
+      # +
+      #   scale_color_manual(
+      #     values = c( "growing" = "red", "plateau" = "blue" , "declining" = "green") ,
+      #     )
+    }
       return( g )
   }) 
 
@@ -150,8 +183,9 @@ county_data <- function( input, output, session, data , model ,
     print( 'tmap data') ; glimpse( d )
     
     d.last = d %>% 
-      group_by( state, county, fips ) %>% 
-      arrange( state, county, fips , desc( date ) ) %>%
+      pivot_longer( cols = starts_with( input_variables()  ) ) %>%
+      group_by( state, county, fips , name ) %>% 
+      arrange( state, county, fips , name , desc( date ) ) %>%
       filter( row_number() == 1 ) %>%
       filter( !is.na( lat ) , !is.na( long ) ) 
   
@@ -172,7 +206,8 @@ county_data <- function( input, output, session, data , model ,
    req( tmapData() )
      
    tm = tm_shape( tmapData() ) +
-     tm_dots( id = 'county' , size = 'cases' , col = 'cases' , alpha = .5  )
+     tm_dots( id = 'county' , size = 'value' , 
+              col = 'value' , alpha = .5  )
    
    tmap_leaflet( tm ) %>%
      onRender(
