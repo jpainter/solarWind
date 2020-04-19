@@ -473,36 +473,32 @@ server <- function( input, output, session ) {
       if ( input$model %in% 'ETS' ){ 
         m = d %>%
         model( ets = ETS( value ) )  %>%
-        augment 
-        # %>%
-        # mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
+        augment %>% 
+        mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
       }
       
       # STL
       if ( input$model %in% 'STL' ){ 
         m = d %>%
         model( stl = STL( value  ~ trend( window = 7 )) )  %>%
-        components() 
-        # %>%
-        # mutate( value = ifelse( trend < 1 , 0 , exp( trend ) + 1 ) )
+        components() %>% 
+        mutate( value = ifelse( trend < 1 , 0 , exp( trend ) + 1 ) )
       }
       
       # ARIMA
       if ( input$model %in% 'ARIMA' ){ 
         m = d %>%
         model( arima = ARIMA( value  ) )  %>%
-        augment 
-        # %>%
-        # mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
+        augment %>% mutate( value = .fitted ) %>%
+        mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
       }
       
       # NNETAR
       if ( input$model %in% 'NNETAR' ){ 
         m = d %>%
         model( nnetar = NNETAR( value, period = '1 week' ) )  %>%
-        augment 
-        # %>%
-        # mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
+        augment %>%  
+        mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
         }
       
       # TSLM
