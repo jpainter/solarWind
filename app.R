@@ -92,7 +92,7 @@ ui <- material_page(
                                       "cumulativeMortality" ,
                                       "dailyDeaths",
                                       "dailyMortality") ,
-                         selected = "cumulativeCaseIncidence" ,
+                         selected = "dailyCaseIncidence" ,
                          multiple = TRUE 
                          )
       ) ,
@@ -104,8 +104,8 @@ ui <- material_page(
         material_checkbox( 'scale' , 'Scale data' , initial_value = FALSE )  ,       
                         
         material_slider( "movingAverage" , "Moving average (days)", 
-                         min_value = 0 , max_value = 14 ,
-                       initial_value = 0
+                         min_value = 1 , max_value = 14 ,
+                       initial_value = 1
                          )
       ) ) ,
     # br() , 
@@ -376,7 +376,7 @@ server <- function( input, output, session ) {
      print( 'defining variables') 
      d = d %>% 
        group_by( state, county, fips ) %>%
-       arrange( state, county, date ) %>%
+       arrange( state, county, fips , date ) %>%
        mutate( cumulativeCases = cases ,
                cumulativeCaseIncidence = cases * 1e5 / pop ,
                dailyCases = difference( cumulativeCases ) ,
@@ -404,45 +404,82 @@ server <- function( input, output, session ) {
      #   ungroup() %>%
      #   mutate( cases = !!rlang::sym( input$variable ) )
      
-     # if US, pick top 100 spots
+     # Pivot longer 
+     d = d %>% 
+      pivot_longer( cols = starts_with( input$variable  ) ) 
+     
+     print( 'pivoting longer'); glimpse( d )
+     
+    # Remove unassigned or not linked with location...may cause duplicates
+    d = d %>% filter( ! county %in% 'Unassigned' )
+    
+    # Tsibble 
+    # print( 'duplicates' )
+    # glimpse( duplicates( d, 
+    #             key = c( state, county, fips , name ) , 
+    #             index = date ) )
+
+    print( 'tsibble' )
+    d = d %>% 
+      as_tsibble( key = c(state, county , fips , name ) , 
+                             index = date ) 
+    glimpse( d ) 
+    
+    # Moving average
+    print( 'moving average' )
+    d = d %>%
+       group_by( state, county , fips, name )  %>%
+       mutate_at( vars( value ) ,
+         ~ slider::slide_dbl( .x, 
+                              mean, na.rm = TRUE ,
+                              .before = input$movingAverage - 1)
+               ) 
+
+     # Scale
+     print( 'scale' )
+     if (input$scale ){
+           d = d %>%
+             group_by( state, county , fips , name )  %>%
+             mutate_at( vars( value  ), scale ) 
+     }
+     glimpse( d )
+    
+     # All - Top
      if ( input$countyPulldown %in% 'ALL' ){
        
        print( 'top filter' )
-        top = d %>% 
-         group_by( state, fips ) %>%
-         arrange( desc( date ) ) %>% 
-          filter( row_number() == 1 ) %>% # most recent day
-         ungroup %>%
-         arrange( desc( cases ) ) %>%
-         select( state, fips ) %>% 
+       print( 'is tsibble ') ; print( is_tsibble( d ) )
+       
+       top = d %>% 
+         as_tibble %>%
+         group_by( state, county, fips, name ) %>%
+         arrange( state, county, fips, name , desc( date ) ) %>% 
+         filter( row_number() == 1 ) %>% # most recent day
+         ungroup() %>%
+         group_by( name ) %>%
+         arrange( desc( value ) ) %>%
+         select( state, fips, county, name  ) %>% 
          filter( row_number() <= input$top ) # top 100 
         
-        print( 'pre-tsible ') ; glimpse(top)
-        duplicates( d, key = c( state, county, fips ) , index = date ) 
+        print( 'top selection') ; glimpse( top )
+       
+        d = semi_join( d, top , 
+                       by = c('state' , 'county' , 'fips' , 'name') 
+                       ) %>%
+          mutate( value = ifelse( is.nan( value ) , NA , value ) ) 
         
-        d = semi_join( d, top , by = c('state' , 'fips') ) %>%
-          ungroup() %>%
-          arrange( state, county , fips , date ) %>%
-          as_tsibble( key = c(state, county, fips ) , index = date ) 
-     }
-     
-     # print( paste( 'moving average:' , input$movingAverage ))
-     
-    # Moving average
-    print( 'moving average')
-    d = d %>%
-       group_by( state, county , fips )  %>%
-       mutate_at( vars( !!! vars ) ,
-         ~ slider::slide_dbl( .x, mean, na.rm = TRUE ,
-                                         .before = input$movingAverage )
-               ) %>% ungroup
-
-         
-     # Scale
-     if (input$scale ){
-           d = d %>%
-             group_by( state, county , fips )  %>%
-             mutate_at( vars( !!! vars ) , scale ) %>% ungroup
+          print( 'after top duplicates' )
+          glimpse( duplicates( d , 
+                key = c( state, county, fips , name ) , 
+                index = date ) )
+    
+          # TEST
+          # saveRDS( d , 'test_data.rds')
+          
+          d = d %>% 
+          as_tsibble( key = c(state, county , fips , name ) , 
+                             index = date ) 
+          print( 'is tsibble ') ; print( is_tsibble( d ) )
      }
     
     print( 'd' )
@@ -456,12 +493,13 @@ server <- function( input, output, session ) {
     req( selectedCountyData() )
     # req( input$modelYN )
     
-    d = selectedCountyData() %>% 
-      pivot_longer( cols = starts_with( input$variable  ) ) %>%
-      arrange( state, county , fips , name, date ) %>%
-      as_tsibble( key = c(state, county , fips , name ) , index = date )
+    print( 'model d') ; 
+    d = selectedCountyData() 
+      # pivot_longer( cols = starts_with( input$variable  ) ) %>%
+      # arrange( state, county , fips , name, date ) %>%
+      # as_tsibble( key = c(state, county , fips , name ) , index = date )
     
-    print( 'model d') ; glimpse( d )
+    glimpse( d )
     
     # ensure no missing values:  set NA to 0 
     d$value[ is.na( d$value) ] = 0
@@ -549,7 +587,7 @@ server <- function( input, output, session ) {
     
     if ( input$modelYN & input$forecastYN ){ 
       d = selectedCountyData() %>%
-        pivot_longer( cols = starts_with( input$variable  ) ) %>%
+        # pivot_longer( cols = starts_with( input$variable  ) ) %>%
         mutate( value = ifelse( is.na( value ) , 0 , value ) ) %>%
         arrange( state, county , fips , name, date ) %>%
         as_tsibble( key = c(state, county , fips , name ) , index = date )

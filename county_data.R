@@ -55,8 +55,8 @@ county_data <- function( input, output, session, data , model ,
   
   dataTS = reactive({
     req( data() )
-    
-    ts =  data_ts( data() ) 
+    data()
+    # ts =  data_ts( data() ) 
   })
   
 
@@ -68,16 +68,17 @@ county_data <- function( input, output, session, data , model ,
     print( 'input vars') ; print( input_variables() )
     selected_vars = rlang::syms( input_variables() ) 
 
-    d = dataTS() %>% 
-      pivot_longer( cols = starts_with( input_variables()  ) )
-    # print( 'pivot data') ; glimpse( d )
+    d = dataTS() 
+      # pivot_longer( cols = starts_with( input_variables()  ) )
+    
+    print( 'dataTS pivot data') ; glimpse( d )
     
     # Dynamic Facets
     facets = as.formula( paste( "~", "name") )
     
     g = 
-      # dataTS() %>%
       d %>%
+      ungroup %>%
       mutate( county = paste( county , state , sep = ", ") ) %>%
       ggplot( aes( x = date, y = value ,  group = fips , 
                    label = county )
@@ -162,17 +163,21 @@ county_data <- function( input, output, session, data , model ,
   tmapData = reactive({ 
     req( data() )
     
+    print( 'tmapData' )
+    
     if ( nrow( data() ) == 0 ) return( NULL )
       
     # if missing lat/lonfg, add in
     if ( !all( c('lat', 'long') %in% names( data() ) ) ){
-      geoFIPS = readRDS( 'geoFIPS.rds') %>% select( fips, lat, long  )
+      geoFIPS = readRDS( 'geoFIPS.rds') %>% 
+        select( fips, lat, long  )
+      
       d = data() %>% left_join( geoFIPS , by = "fips" ) 
       
     } else {
       
       d = data()
-      # glimpse( d )
+      glimpse( d )
     }
     
     # # Pivot longer
@@ -183,7 +188,7 @@ county_data <- function( input, output, session, data , model ,
     print( 'tmap data') ; glimpse( d )
     
     d.last = d %>% 
-      pivot_longer( cols = starts_with( input_variables()  ) ) %>%
+      # pivot_longer( cols = starts_with( input_variables()  ) ) %>%
       group_by( state, county, fips , name ) %>% 
       arrange( state, county, fips , name , desc( date ) ) %>%
       filter( row_number() == 1 ) %>%
