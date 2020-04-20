@@ -88,6 +88,8 @@ ui <- material_page(
                                       "cumulativeCaseIncidence" ,
                                       "dailyCases",
                                       "dailyCaseIncidence" ,
+                                      "dailyActiveCases" , 
+                                      "dailyActiveIncidence" ,
                                       "cumulativeDeaths" , 
                                       "cumulativeMortality" ,
                                       "dailyDeaths",
@@ -229,7 +231,7 @@ server <- function( input, output, session ) {
               
               key = read_lines( 'api.txt' )
               
-              days = seq( lastDate + days(1) , ymd( Sys.Date()  - days(1)), by="days" ) 
+              days = seq( lastDate + days(1) , ymd( Sys.Date() ), by="days" ) 
               
               print( 'getting data for this number of days') ; print(length(days))
               
@@ -381,10 +383,16 @@ server <- function( input, output, session ) {
      d = d %>% 
        group_by( state, county, fips ) %>%
        arrange( state, county, fips , date ) %>%
-       mutate( cumulativeCases = cases ,
-               cumulativeCaseIncidence = cases * 1e5 / pop ,
-               dailyCases = difference( cumulativeCases ) ,
-               dailyCaseIncidence = dailyCases * 1e5 / pop 
+       mutate( 
+         recoveredCases = cumsum( ifelse( is.na( recovered ) , 0 , recovered ) ) , 
+         cumulativeCases = cases ,
+         cumulativeCaseIncidence = cases * 1e5 / pop ,
+         dailyCases = difference( cumulativeCases ) ,
+         dailyCaseIncidence = dailyCases * 1e5 / pop ,
+         incidence = dailyCaseIncidence , # used to classify high plateau, need in every row, not of pivot
+         dailyActiveCases = cumulativeCases - recoveredCases ,
+         dailyActiveIncidence = dailyActiveCases * 1e5 / pop
+               
           ) 
      
      print( paste('has deaths' , 'deaths' %in% names( d )  )) 
@@ -412,11 +420,11 @@ server <- function( input, output, session ) {
      # Pivot longer 
      d = d %>% 
       pivot_longer( cols = starts_with( input$variable  ) ) %>%
-      select( state, county, fips, date, cases, deaths, recovered, 
+      select( state, county, fips, date, cases, deaths, recovered, incidence ,
               lat, long , pop , name, value )
      
      print( 'pivoting longer'); 
-     # glimpse( d )
+     glimpse( d )
      
     # Remove unassigned or not linked with location...may cause duplicates
     d = d %>% filter( ! county %in% 'Unassigned' )

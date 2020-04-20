@@ -59,45 +59,84 @@ county_data <- function( input, output, session, data , model ,
     d = data() %>% mutate( status = value )
     m = model() 
     
+
+    
     if ( is_tsibble( m ) ){
+      
+        d = left_join( d %>% as_tibble %>% select( - status ), 
+                     m %>% as_tibble %>% rename( y = value ) # change name to avoid conflict with raw value
+                     # y is the fitted value of the model .. Eq to .fitted
+                     ,  by = c( 'state', 'county', 'fips' , 'name' , 'date' )) 
+        
+        print( 'dataTS') 
+        glimpse( d )
+        
         # Cut offs
         low.inc.cut = 10
         slope.cut = input$slopeCut # 0.1
       
-        m =  m %>%
+        # modeled data
+        m =  d %>%
           group_by( state, county, fips , name ) %>%
           mutate( 
-            value.scale = scale( value ) ,
+            value.scale = scale( y ) ,
             deriv1 = difference( value.scale , lag = 1 ) ,
             lead_x = lead( date ) ,
-            lead_y = lead( value ) ,
+            lead_y = lead( y ) ,
             # deriv1.7dave = slider::slide_dbl( deriv1 , mean , .before = 6 ) ,
             cat = case_when(  
                   deriv1 > -slope.cut & deriv1 < slope.cut ~ 'plateau' ,
                   deriv1 >= slope.cut ~ "growing" ,
                   deriv1 <= -slope.cut ~ "declining"
-                  ) ,
-            status = factor( lead( cat ) , 
-                             levels = c( 'growing', 'plateau', 'declining' )) # geom seg wants previous cat to coincide with slope
-          ) %>%
-          select( state, county, fips , name , status, date ,
-                  lead_x , lead_y , value  ) %>%
-         rename( y = value )  # change name to avoid conflict with raw value
+                  ) ) %>%
+          
+          # Sustained decline
+          mutate( 
+            # Stuck at high incidence is ... last 5 days at plateau where incidence > 10/10^5
+            higIncidence = slider::slide_lgl( incidence , ~  all( .x >= low.inc.cut ) , .before = 4 ) ,
+            StuckPlateau = slider::slide_lgl( cat, ~ all( .x %in% 'plateau' ) , .before = 4 ) ,
+            
+            # Decline when ...
+            sustainedDecline7 = slider::slide_lgl(cat , ~ all( ! .x %in% 'growing' ) , .before = 6 ) ,
+            sustainedDecline14 = slider::slide_lgl(cat , ~ all( ! .x %in% 'growing' ) , .before = 13 )
+            
+            
+            ) %>%
+          mutate( 
+            
+            status = case_when(
+              sustainedDecline7 & ! ( higIncidence &  StuckPlateau ) ~ 'sustained decline (7 days)' ,
+              sustainedDecline14 & ! ( higIncidence &  StuckPlateau ) ~ 'sustained decline (14 days)' ,
+              TRUE ~ cat ) , 
+            
+            status = factor( lead( status ) , 
+                             levels = c( 'growing', 'plateau', 'declining', 
+                                         'sustained decline (7 days)' ,
+                                         'sustained decline (14 days)'
+                                         ) ) , # geom seg wants previous cat to coincide with slope
+            ) 
+        # %>%
+        #   
+        #   select( state, county, fips , name , cat, status, date , value ,
+        #           lead_x , lead_y , y  ) 
         
         print( 'class m') ; print( class( m ) ) ; 
+        
         # glimpse( m ) ; saveRDS( m , 'testM.rds')
         
-        d = left_join( d %>% as_tibble %>% select( - status ), 
-                       m %>% as_tibble   , 
-                       by = c( 'state', 'county', 'fips' , 'name' , 'date' )) 
+        # d = left_join( d %>% as_tibble %>% select( - status ), 
+        #                m %>% as_tibble   , 
+        #                by = c( 'state', 'county', 'fips' , 'name' , 'date' )) 
         
-        print( 'class d') ; print( class( d ) )
+        # print( 'class d') ; print( class( d ) )
         
-        d = d %>% as_tsibble( key = c(state, county , fips , name ) , 
+        d = m %>% as_tsibble( key = c(state, county , fips , name ) , 
                              index = date ) 
     }
     
     # glimpse(d)
+    # saveRDS( d, 'catD.rds')
+    
     return( d )
   })
   
@@ -111,18 +150,19 @@ county_data <- function( input, output, session, data , model ,
     selected_vars = rlang::syms( input_variables() ) 
 
     d = dataTS() 
-      # pivot_longer( cols = starts_with( input_variables()  ) )
-    
+
     print( 'dataTS pivot data') ; 
-    # glimpse( d )
+    glimpse( d )
     
     # Dynamic Facets
     facets = as.formula( paste( "~", "name") )
     
+    d = d %>%
+      ungroup %>%
+      mutate( county = paste( county , state , sep = ", ") ) 
+    
     g = 
       d %>%
-      ungroup %>%
-      mutate( county = paste( county , state , sep = ", ") ) %>%
       ggplot( aes( x = date, y = value ,  group = fips , 
                    label = county )
               ) +
@@ -143,14 +183,23 @@ county_data <- function( input, output, session, data , model ,
       g = g + 
         # fitted line
         # geom_line( data = m , aes( y = y , color = cat , group = 1 ) ) +
-        geom_segment( data = d ,
-                      aes(x = date, xend = lead_x , 
+        geom_segment( data = d , aes(x = date, xend = lead_x , 
                           y = y, yend = lead_y , color = status ,
                           group = fips )
         ) +
-        scale_color_manual( 
-          values = c( "growing" = "red", "plateau" = "blue" , "declining" = "green") ,
-          )
+        # scale_color_brewer( palette =  "RdYlGn",  type = "div" , drop = FALSE )
+        
+        scale_color_manual( values = brewer.pal(5, "RdYlGn" )  ,
+                           drop = FALSE )
+        
+        # scale_color_manual( 
+        #   values = c( "growing" = "red", 
+        #               "plateau" = "orange" , 
+        #               "declining" = "blue" , 
+        #               "sustained decline (7 days)" = "yellow" ,
+        #               "sustained decline (7 days)" = "green" 
+        #               ) 
+        #   )
     }
     
     # Add forecast
@@ -230,7 +279,8 @@ county_data <- function( input, output, session, data , model ,
    if ( !is_tsibble( model() ) ){ 
      pal = "Reds"
    } else {
-     pal = c( growing = "red", plateau = "blue" , declining = "green")
+     pal = brewer.pal(5, "RdYlGn" ) # 
+     # pal = c( growing = "red", plateau = "blue" , declining = "green")
    }
      
    tm = tm_shape( tmapData() ) +
@@ -242,7 +292,7 @@ county_data <- function( input, output, session, data , model ,
                 "Cumulative Deaths:" = "deaths" ,
                 "Population" = "pop" , "Date:" = "date") ,
               col = 'status' , alpha = .5  ,
-              palette = pal ,
+              palette =  pal ,
               legend.hist = TRUE
               )
    
