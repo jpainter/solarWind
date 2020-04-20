@@ -229,7 +229,7 @@ server <- function( input, output, session ) {
               
               key = read_lines( 'api.txt' )
               
-              days = seq( lastDate + days(1) , ymd( Sys.Date() ), by="days" ) 
+              days = seq( lastDate + days(1) , ymd( Sys.Date()  - days(1)), by="days" ) 
               
               print( 'getting data for this number of days') ; print(length(days))
               
@@ -272,7 +272,8 @@ server <- function( input, output, session ) {
                 fips = paste0( stateFipsCode , countyFipsCode )
                 ) 
             
-            print( 'data' ) ; glimpse( data )
+            print( 'data' ) ; 
+            # glimpse( data )
             
             return( data )
             
@@ -336,7 +337,8 @@ server <- function( input, output, session ) {
                                value = 'ALL'
                                )
    })
-   
+ 
+  # Select county data ####  
   selectedCountyData = reactive({
     
       req( input$countyPulldown  )
@@ -344,7 +346,8 @@ server <- function( input, output, session ) {
      
      print( input$countyPulldown  )
      
-     print( 'allCountyData before selection') ; glimpse( allCountyData() )
+     print( 'allCountyData before selection') ;
+     # glimpse( allCountyData() )
      
      # if needed, add Lat/Long and pop
      if ( !all( c('lat', 'long') %in% names( allCountyData()  ) ) ){
@@ -353,7 +356,8 @@ server <- function( input, output, session ) {
       
       d = allCountyData()  %>% left_join( geoFIPS , by = "fips" ) 
       
-      print( 'allCountyData after adding geo') ; glimpse( d )
+      print( 'allCountyData after adding geo') ; 
+      # glimpse( d )
   
     } else {
       
@@ -398,7 +402,8 @@ server <- function( input, output, session ) {
      
      # select Variable
      vars = rlang::syms( input$variable ) 
-     print( 'vars'); print( input$variable ) ; glimpse( d )
+     print( 'vars'); print( input$variable ) ; 
+     # glimpse( d )
      
      # d = d %>%
      #   ungroup() %>%
@@ -406,9 +411,12 @@ server <- function( input, output, session ) {
      
      # Pivot longer 
      d = d %>% 
-      pivot_longer( cols = starts_with( input$variable  ) ) 
+      pivot_longer( cols = starts_with( input$variable  ) ) %>%
+      select( state, county, fips, date, cases, deaths, recovered, 
+              lat, long , pop , name, value )
      
-     print( 'pivoting longer'); glimpse( d )
+     print( 'pivoting longer'); 
+     # glimpse( d )
      
     # Remove unassigned or not linked with location...may cause duplicates
     d = d %>% filter( ! county %in% 'Unassigned' )
@@ -423,7 +431,7 @@ server <- function( input, output, session ) {
     d = d %>% 
       as_tsibble( key = c(state, county , fips , name ) , 
                              index = date ) 
-    glimpse( d ) 
+    # glimpse( d ) 
     
     # Moving average
     print( 'moving average' )
@@ -442,7 +450,7 @@ server <- function( input, output, session ) {
              group_by( state, county , fips , name )  %>%
              mutate_at( vars( value  ), scale ) 
      }
-     glimpse( d )
+     # glimpse( d )
     
      # All - Top
      if ( input$countyPulldown %in% 'ALL' ){
@@ -461,7 +469,8 @@ server <- function( input, output, session ) {
          select( state, fips, county, name  ) %>% 
          filter( row_number() <= input$top ) # top 100 
         
-        print( 'top selection') ; glimpse( top )
+        print( 'top selection') ; 
+        # glimpse( top )
        
         d = semi_join( d, top , 
                        by = c('state' , 'county' , 'fips' , 'name') 
@@ -469,26 +478,28 @@ server <- function( input, output, session ) {
           mutate( value = ifelse( is.nan( value ) , NA , value ) ) 
         
           print( 'after top duplicates' )
-          glimpse( duplicates( d , 
-                key = c( state, county, fips , name ) , 
-                index = date ) )
+          # glimpse( duplicates( d , 
+          #       key = c( state, county, fips , name ) , 
+          #       index = date ) )
     
           # TEST
           # saveRDS( d , 'test_data.rds')
           
           d = d %>% 
           as_tsibble( key = c(state, county , fips , name ) , 
-                             index = date ) 
+                             index = date ) %>%
+            fill_gaps()
+          
           print( 'is tsibble ') ; print( is_tsibble( d ) )
      }
     
     print( 'd' )
-    glimpse( d )
+    # glimpse( d )
 
      return( d )
    })
    
-  
+  # Model data ####
   modelData = reactive({
     req( selectedCountyData() )
     # req( input$modelYN )
@@ -499,13 +510,13 @@ server <- function( input, output, session ) {
       # arrange( state, county , fips , name, date ) %>%
       # as_tsibble( key = c(state, county , fips , name ) , index = date )
     
-    glimpse( d )
+    # glimpse( d )
     
     # ensure no missing values:  set NA to 0 
     d$value[ is.na( d$value) ] = 0
 
     # if ( input$modelYN & input$countyPulldown != 'ALL' ){
-    if ( input$modelYN & input$top <= 5  ){
+    if ( input$modelYN & input$top <= 100  ){
  
       # ETS
       if ( input$model %in% 'ETS' ){ 
@@ -576,12 +587,12 @@ server <- function( input, output, session ) {
     } else { m = NA }
     
     print('model') ; print( input$model )
-    glimpse( m )
+    # glimpse( m )
     
     return( m )
   })
 
-  # FORECASTING 
+  # FORECASTING ####
     forecastData = reactive({
     req( selectedCountyData() )
     

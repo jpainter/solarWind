@@ -55,8 +55,50 @@ county_data <- function( input, output, session, data , model ,
   
   dataTS = reactive({
     req( data() )
-    data()
-    # ts =  data_ts( data() ) 
+    
+    d = data() %>% mutate( status = value )
+    m = model() 
+    
+    if ( is_tsibble( m ) ){
+        # Cut offs
+        low.inc.cut = 10
+        slope.cut = input$slopeCut # 0.1
+      
+        m =  m %>%
+          group_by( state, county, fips , name ) %>%
+          mutate( 
+            value.scale = scale( value ) ,
+            deriv1 = difference( value.scale , lag = 1 ) ,
+            lead_x = lead( date ) ,
+            lead_y = lead( value ) ,
+            # deriv1.7dave = slider::slide_dbl( deriv1 , mean , .before = 6 ) ,
+            cat = case_when(  
+                  deriv1 > -slope.cut & deriv1 < slope.cut ~ 'plateau' ,
+                  deriv1 >= slope.cut ~ "growing" ,
+                  deriv1 <= -slope.cut ~ "declining"
+                  ) ,
+            status = factor( lead( cat ) , 
+                             levels = c( 'growing', 'plateau', 'declining' )) # geom seg wants previous cat to coincide with slope
+          ) %>%
+          select( state, county, fips , name , status, date ,
+                  lead_x , lead_y , value  ) %>%
+         rename( y = value )  # change name to avoid conflict with raw value
+        
+        print( 'class m') ; print( class( m ) ) ; 
+        # glimpse( m ) ; saveRDS( m , 'testM.rds')
+        
+        d = left_join( d %>% as_tibble %>% select( - status ), 
+                       m %>% as_tibble   , 
+                       by = c( 'state', 'county', 'fips' , 'name' , 'date' )) 
+        
+        print( 'class d') ; print( class( d ) )
+        
+        d = d %>% as_tsibble( key = c(state, county , fips , name ) , 
+                             index = date ) 
+    }
+    
+    # glimpse(d)
+    return( d )
   })
   
 
@@ -71,7 +113,8 @@ county_data <- function( input, output, session, data , model ,
     d = dataTS() 
       # pivot_longer( cols = starts_with( input_variables()  ) )
     
-    print( 'dataTS pivot data') ; glimpse( d )
+    print( 'dataTS pivot data') ; 
+    # glimpse( d )
     
     # Dynamic Facets
     facets = as.formula( paste( "~", "name") )
@@ -93,39 +136,16 @@ county_data <- function( input, output, session, data , model ,
     
     # Add model
     if ( is_tsibble( model() ) ){
-
-      glimpse( model() )
-      
-      # Cut offs
-        low.inc.cut = 10
-        slope.cut = input$slopeCut # 0.1
-  
-      m = model() 
-      
-      m =  m %>%
-        group_by( state, county, fips , name ) %>%
-        mutate( 
-          deriv1 = difference( value , lag = 1 ) ,
-          lead_x = lead( date ) ,
-          lead_y = lead( value ) ,
-          # deriv1.7dave = slider::slide_dbl( deriv1 , mean , .before = 6 ) ,
-          cat = case_when(  
-                deriv1 > -slope.cut & deriv1 < slope.cut ~ 'plateau' ,
-                deriv1 >= slope.cut ~ "growing" ,
-                deriv1 <= -slope.cut ~ "declining"
-                ),
-          cat = lead( cat ) # geom seg wants previous cat to coincide with slope
-        ) %>% ungroup()
-      
+   
       print( 'chart m' ); 
-      glimpse( m )
+      # glimpse( m )
       
       g = g + 
         # fitted line
         # geom_line( data = m , aes( y = y , color = cat , group = 1 ) ) +
-        geom_segment( data = m ,
+        geom_segment( data = d ,
                       aes(x = date, xend = lead_x , 
-                          y = value, yend = lead_y , color = cat ,
+                          y = y, yend = lead_y , color = status ,
                           group = fips )
         ) +
         scale_color_manual( 
@@ -137,12 +157,12 @@ county_data <- function( input, output, session, data , model ,
     if ( is_tsibble( forecastData() ) ){
 
       print( 'forecastData' )
-      glimpse( forecastData() )
+      # glimpse( forecastData() )
 
       f = forecastData()  %>% hilo %>% unnest( `95%` )
 
       print( 'chart f' );
-      glimpse( f )
+      # glimpse( f )
 
       g = g +
         # fitted line
@@ -161,42 +181,38 @@ county_data <- function( input, output, session, data , model ,
   }) 
 
   tmapData = reactive({ 
-    req( data() )
+    req( dataTS() )
     
     print( 'tmapData' )
     
-    if ( nrow( data() ) == 0 ) return( NULL )
+    if ( nrow( dataTS() ) == 0 ) return( NULL )
       
     # if missing lat/lonfg, add in
-    if ( !all( c('lat', 'long') %in% names( data() ) ) ){
+    if ( !all( c('lat', 'long') %in% names( dataTS() ) ) ){
       geoFIPS = readRDS( 'geoFIPS.rds') %>% 
         select( fips, lat, long  )
       
-      d = data() %>% left_join( geoFIPS , by = "fips" ) 
+      d = dataTS() %>% left_join( geoFIPS , by = "fips" ) 
       
     } else {
       
-      d = data()
-      glimpse( d )
+      d = dataTS()
+      # glimpse( d )
     }
     
-    # # Pivot longer
-    print( 'tmap vars') ; print( input_variables()[1] )
-    selected_vars = rlang::syms( input_variables()[1] )
-    
-    # d = d %>% mutate( y = vars( !!! selected_vars ) )
-    print( 'tmap data') ; glimpse( d )
-    
-    d.last = d %>% 
-      # pivot_longer( cols = starts_with( input_variables()  ) ) %>%
+    d.last = d %>% as_tibble() %>%
       group_by( state, county, fips , name ) %>% 
       arrange( state, county, fips , name , desc( date ) ) %>%
+      mutate( status = lead( status , 1 ) ) %>%
       filter( row_number() == 1 ) %>%
       filter( !is.na( lat ) , !is.na( long ) ) 
   
     # convert to sf
     dsf = st_as_sf( d.last , coords = c( "long", "lat" ) ) 
 
+    print( 'd.last') ;
+    glimpse( d.last )
+        
     return( dsf )
     }) 
 ### outputs ####
@@ -206,13 +222,29 @@ county_data <- function( input, output, session, data , model ,
     # ggplotTS() 
     ggplotly( ggplotTS() )  # %>% hide_legend()
     })
-
+  
    output$map = renderLeaflet({
    req( tmapData() )
      
+  # Palette
+   if ( !is_tsibble( model() ) ){ 
+     pal = "Reds"
+   } else {
+     pal = c( growing = "red", plateau = "blue" , declining = "green")
+   }
+     
    tm = tm_shape( tmapData() ) +
      tm_dots( id = 'county' , size = 'value' , 
-              col = 'value' , alpha = .5  )
+              popup.vars =  # TRUE ,
+              c(
+                " " = "name" , " " = "value" ,
+                "Cumulative Cases:" = "cases",
+                "Cumulative Deaths:" = "deaths" ,
+                "Population" = "pop" , "Date:" = "date") ,
+              col = 'status' , alpha = .5  ,
+              palette = pal ,
+              legend.hist = TRUE
+              )
    
    tmap_leaflet( tm ) %>%
      onRender(
