@@ -121,10 +121,10 @@ ui <- material_page(
     material_row(       style="padding-left: 10px;" ,
                         
       material_dropdown( "model" , "Model type", 
-                         choices = c( "ARIMA" ,"ETS" , "STL" , 
+                         choices = c( "ARIMA" ,"ETS" , # "STL" , 
                                       # "TSLM" , 
                                       "NNETAR" , "Spline") ,
-                         selected = "NNETAR"
+                         selected = "Spline"
                          ) ,
       
       material_checkbox( "forecastYN" , "Add Forecast", 
@@ -139,7 +139,7 @@ ui <- material_page(
       material_column( width = 6 , 
         textOutput( "source" )  , 
         # material_button( 'usaFacts' , 'Fetch USA Facts data' ) ,
-        textOutput( "lastDate" ) 
+        h5( textOutput( "lastDate" ) )
         ) ,
      material_column( width = 6 , 
         material_file_input( 'dataFile' , 'Select data file*' ) ,
@@ -202,7 +202,7 @@ server <- function( input, output, session ) {
              
              print( 'loading usa data' )
              usa = readRDS( 'usaFacts.rds' )
-             lastDate = max( usa$date ) 
+             lastDate = max( usa$date , na.rm = TRUE ) 
              output$lastDate = renderText( paste( "Most recent data:" , as.character(lastDate) ) )
              
            } else { 
@@ -247,7 +247,7 @@ server <- function( input, output, session ) {
                                    
                                       } , .progress = TRUE 
               )
-            
+              
            }
            
            if ( exists( 'usa.new' ) ) {
@@ -259,6 +259,8 @@ server <- function( input, output, session ) {
              } else {
                usa = usa.new
              }
+             
+            lastDate = max( usa$date , na.rm = TRUE ) 
              
              # save data to file 
              saveRDS( usa , 'usaFacts.rds' )
@@ -553,7 +555,9 @@ server <- function( input, output, session ) {
       # NNETAR
       if ( input$model %in% 'NNETAR' ){ 
         m = d %>%
-        model( nnetar = NNETAR( value, period = '1 week' ) )  %>%
+        model( nnetar = NNETAR( value, P = 0  # no seasonal term
+                                # period = '1 week' 
+                                ) )  %>%
         augment %>%  
         mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
         }
@@ -587,7 +591,9 @@ server <- function( input, output, session ) {
           
         # print( 'tssa' ) ; glimpse( tssa ) ; saveRDS( tssa, 'tssa.rds')
         
-        m = bind_cols( d , tssa ) %>%
+        m =
+          bind_cols( d %>% select( state, county , fips, date, name ) ,
+                    tssa ) %>%
           arrange( state, county , fips , name , date ) %>%
           as_tsibble( index = date, key = c( county, state, fips, name ) ) 
         }
@@ -619,7 +625,9 @@ server <- function( input, output, session ) {
           
         print( m )
         
-        f = m %>% forecast( h = '2 weeks' , times = 10 ) 
+        f = m %>% forecast( h = '2 weeks' , times = 10 ) %>% 
+          rename( pred = value )
+        
         print( f ) 
           
           } else { return() }

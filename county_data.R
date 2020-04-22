@@ -55,20 +55,20 @@ county_data <- function( input, output, session, data , model ,
   
   dataTS = reactive({
     req( data() )
+    print( 'dataTS')
     
     d = data() %>% mutate( status = value )
     m = model() 
-    
-
-    
+  
+    print( 'joining data with model' )
+    # glimpse( d ) ; glimpse( m )
     if ( is_tsibble( m ) ){
       
-        d = left_join( d %>% as_tibble %>% select( - status ), 
-                     m %>% as_tibble %>% rename( y = value ) # change name to avoid conflict with raw value
+        d = left_join( d %>% as_tibble %>% select( -status ), 
+                     m %>% as_tibble %>% rename( fit = value ) # change name to avoid conflict with raw value
                      # y is the fitted value of the model .. Eq to .fitted
                      ,  by = c( 'state', 'county', 'fips' , 'name' , 'date' )) 
         
-        print( 'dataTS') 
         glimpse( d )
         
         # Cut offs
@@ -79,11 +79,11 @@ county_data <- function( input, output, session, data , model ,
         m =  d %>%
           group_by( state, county, fips , name ) %>%
           mutate( 
-            value.scale = scale( y ) ,
+            value.scale = scale( fit ) ,
             deriv1 = difference( value.scale , lag = 1 ) ,
             lead_x = lead( date ) ,
-            lead_y = lead( y ) ,
-            # deriv1.7dave = slider::slide_dbl( deriv1 , mean , .before = 6 ) ,
+            lead_y = lead( fit ) ,
+            deriv1.7dave = slider::slide_dbl( deriv1 , mean , .before = 6 ) ,
             cat = case_when(  
                   deriv1 > -slope.cut & deriv1 < slope.cut ~ 'plateau' ,
                   deriv1 >= slope.cut ~ "growing" ,
@@ -105,8 +105,8 @@ county_data <- function( input, output, session, data , model ,
           mutate( 
             
             status = case_when(
-              sustainedDecline7 & ! ( higIncidence &  StuckPlateau ) ~ 'sustained decline (7 days)' ,
               sustainedDecline14 & ! ( higIncidence &  StuckPlateau ) ~ 'sustained decline (14 days)' ,
+              sustainedDecline7 & ! ( higIncidence &  StuckPlateau ) ~ 'sustained decline (7 days)' ,
               TRUE ~ cat ) , 
             
             status = factor( lead( status ) , 
@@ -157,6 +157,22 @@ county_data <- function( input, output, session, data , model ,
     # Dynamic Facets
     facets = as.formula( paste( "~", "name") )
     
+    # start date
+    start_date = d %>% as_tibble() %>%
+      filter( cases == 0 ) %>% 
+      group_by( county, state, fips ) %>%
+      summarise( date = max( date , na.rm = TRUE ) ) %>%
+      ungroup() 
+    
+    print( 'start date' ) ; print( start_date )
+    
+    start_date = min( start_date$date )
+    
+    # end date
+    end_date = d %>% pull( date ) %>% max
+    
+    print( 'min date'); print( start_date )
+    
     d = d %>%
       ungroup %>%
       mutate( county = paste( county , state , sep = ", ") ) 
@@ -165,12 +181,22 @@ county_data <- function( input, output, session, data , model ,
       d %>%
       ggplot( aes( x = date, y = value ,  group = fips , 
                    label = county )
-              ) +
-      geom_line() +
-      facet_wrap( facets, 
+              )
+    
+    # bar chart vs line chart
+    print( 'distinct fips') ; print( unique( d$fips ) ) 
+    if ( length( unique( d$fips ) ) > 1 ){
+      g = g + geom_line() 
+    } else {
+      g = g + geom_col() 
+    }
+     
+     # facets 
+     g = g +
+       facet_wrap( facets, 
                   ncol = 1 , scales = 'free' , 
                   strip.position = "top" , labeller = label_both ) + 
-      scale_x_date( date_labels = "%m/%d" ) +
+      scale_x_date( limits = c( start_date , end_date ) , date_labels = "%m/%d" ) +
       theme_minimal() +
       labs( x = "" , y = "") 
     
@@ -184,7 +210,7 @@ county_data <- function( input, output, session, data , model ,
         # fitted line
         # geom_line( data = m , aes( y = y , color = cat , group = 1 ) ) +
         geom_segment( data = d , aes(x = date, xend = lead_x , 
-                          y = y, yend = lead_y , color = status ,
+                          y = fit, yend = lead_y , color = status ,
                           group = fips )
         ) +
         # scale_color_brewer( palette =  "RdYlGn",  type = "div" , drop = FALSE )
@@ -216,7 +242,7 @@ county_data <- function( input, output, session, data , model ,
       g = g +
         # fitted line
         # geom_line( data = m , aes( y = y , color = cat , group = 1 ) ) +
-        geom_line( data = f , aes(x = date, y = value , group = fips ) ,
+        geom_line( data = f , aes(x = date, y = pred , group = fips ) ,
                    color = 'brown' , alpha=0.5 ) +
         geom_ribbon( data = f ,
                      aes( ymin = .lower, ymax = .upper ) , 
