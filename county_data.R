@@ -339,7 +339,7 @@ county_data <- function( input, output, session, data , model ,
               palette =  pal ,
               legend.hist = TRUE 
               ) +
-     tm_view( view.legend.position = c('right' , 'bottom'),
+     tm_view( view.legend.position = c('left' , 'bottom'),
               # projection = "WGS84" , 
               dot.size.fixed = FALSE )
   
