@@ -50,7 +50,7 @@ ui <- material_page(
   material_side_nav(
 
     # image_source = "side_nav.jpeg",  
-    fixed = TRUE ,
+    fixed = FALSE ,
    
     # Place side-nav tabs within side-nav
     material_side_nav_tabs(
@@ -75,7 +75,7 @@ ui <- material_page(
                          choices = NULL , multiple = TRUE ) ,
     
       material_slider( 'top' , "Filter to top...(1-100)" , 
-                     min_value = 1 , max_value = 100 , initial_value = 5 ) 
+                     min_value = 1 , max_value = 200 , initial_value = 5 ) 
     
     ) ) ,
     
@@ -94,7 +94,7 @@ ui <- material_page(
                                       "cumulativeMortality" ,
                                       "dailyDeaths",
                                       "dailyMortality") ,
-                         selected = "dailyCaseIncidence" ,
+                         selected = c( "dailyCases","dailyCaseIncidence" ) ,
                          multiple = TRUE 
                          )
       ) ,
@@ -526,7 +526,7 @@ server <- function( input, output, session ) {
     d$value[ is.na( d$value) ] = 0
 
     # if ( input$modelYN & input$countyPulldown != 'ALL' ){
-    if ( input$modelYN & input$top <= 100  ){
+    if ( input$modelYN  ){
  
       # ETS
       if ( input$model %in% 'ETS' ){ 

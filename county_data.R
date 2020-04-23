@@ -11,10 +11,11 @@ county_data_UI <- function( id ) {
   
   # Create a namespace function using the provided id
   ns <- NS(id)
-  
-                material_row(
+                material_row( 
+                  style="padding-left: 10px;" ,
                   textOutput( ns('stateList')) ,
-                  material_column( width = 5, offset = 1 ,
+                  material_column( width = 6, 
+                                   # offset = 1 ,
                                    plotlyOutput( ns('chartTS') ) ,
                                    # plotOutput( ns('chartTS') ) ,
    
@@ -26,7 +27,7 @@ county_data_UI <- function( id ) {
                                                     step_size = .01
                                                     ) 
                                    ) ,
-                  material_column( width = 5, 
+                  material_column( width = 6, 
                                    
                                    # leaflet print plugin 
                                    ## !! Only works in chrome and firefox
@@ -159,7 +160,7 @@ county_data <- function( input, output, session, data , model ,
     
     # start date
     start_date = d %>% as_tibble() %>%
-      filter( cases == 0 ) %>% 
+      filter( cases <= 1 ) %>% 
       group_by( county, state, fips ) %>%
       summarise( date = max( date , na.rm = TRUE ) ) %>%
       ungroup() 
@@ -195,8 +196,9 @@ county_data <- function( input, output, session, data , model ,
      g = g +
        facet_wrap( facets, 
                   ncol = 1 , scales = 'free' , 
-                  strip.position = "top" , labeller = label_both ) + 
-      scale_x_date( limits = c( start_date , end_date ) , date_labels = "%m/%d" ) +
+                  strip.position = "top" , labeller = label_value ) + 
+      scale_x_date( limits = c( start_date , end_date ) , 
+                    date_labels = "%m/%d" ) +
       theme_minimal() +
       labs( x = "" , y = "") 
     
@@ -216,16 +218,15 @@ county_data <- function( input, output, session, data , model ,
         # scale_color_brewer( palette =  "RdYlGn",  type = "div" , drop = FALSE )
         
         scale_color_manual( values = brewer.pal(5, "RdYlGn" )  ,
-                           drop = FALSE )
+                           drop = FALSE ) +
         
-        # scale_color_manual( 
-        #   values = c( "growing" = "red", 
-        #               "plateau" = "orange" , 
-        #               "declining" = "blue" , 
-        #               "sustained decline (7 days)" = "yellow" ,
-        #               "sustained decline (7 days)" = "green" 
-        #               ) 
-        #   )
+        # Legend position
+        # Warning: plotly.js does not (yet) support horizontal legend items 
+        theme( legend.position = 'top' 
+               , legend.justification='left'
+               # , legend.direction = 'horizontal'
+               )
+  
     }
     
     # Add forecast
@@ -295,7 +296,11 @@ county_data <- function( input, output, session, data , model ,
   output$chartTS = renderPlotly({ 
     req( ggplotTS() ) 
     # ggplotTS() 
-    ggplotly( ggplotTS() )  # %>% hide_legend()
+    ggplotly( ggplotTS() )  %>% 
+      layout(
+       # title = "New plot title",
+       legend = list(orientation = "h",
+                   y = 0, x = 0) )
     })
   
    output$map = renderLeaflet({
@@ -311,6 +316,7 @@ county_data <- function( input, output, session, data , model ,
      
    tm = tm_shape( tmapData() ) +
      tm_dots( id = 'county' , size = 'value' , 
+              scale = 3 , 
               popup.vars =  # TRUE ,
               c(
                 " " = "name" , " " = "value" ,
@@ -319,10 +325,15 @@ county_data <- function( input, output, session, data , model ,
                 "Population" = "pop" , "Date:" = "date") ,
               col = 'status' , alpha = .5  ,
               palette =  pal ,
-              legend.hist = TRUE
-              )
-   
+              legend.hist = TRUE 
+              ) +
+     tm_view( view.legend.position = c('right' , 'bottom'),
+              # projection = "WGS84" , 
+              dot.size.fixed = FALSE )
+  
    tmap_leaflet( tm ) %>%
+     # addLegend( position =  "bottomright" , 
+     #            pal=pal , values = ~value ) %>%
      onRender(
           "function(el, x) {
             L.easyPrint({
