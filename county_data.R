@@ -16,6 +16,7 @@ county_data_UI <- function( id ) {
                   textOutput( ns('stateList')) ,
                   material_column( width = 6, 
                                    # offset = 1 ,
+                                   textOutput( ns("movingAverageText" ) ) ,  
                                    plotlyOutput( ns('chartTS') ) ,
                                    # plotOutput( ns('chartTS') ) ,
    
@@ -42,9 +43,12 @@ county_data_UI <- function( id ) {
 # Server function ####
 county_data <- function( input, output, session, data , model , 
                          forecastData ,
-                         input_variables
+                         input_variables ,
+                         movingAverageDays 
                          ) {
-
+ # moving average text box
+  output$movingAverageText = renderText(  paste( movingAverageDays() , "day moving average" )  )
+  
   countyCount = reactive({
     
     # glimpse( data() )
@@ -159,8 +163,14 @@ county_data <- function( input, output, session, data , model ,
     facets = as.formula( paste( "~", "name") )
     
     # start date
+    if ( length( unique( d$fips ) ) > 5 ){
+      min.num = 5
+    } else {
+      min.num = 0
+    }
+      
     start_date = d %>% as_tibble() %>%
-      filter( cases <= 1 ) %>% 
+      filter( cases <= min.num ) %>% 
       group_by( county, state, fips ) %>%
       summarise( date = max( date , na.rm = TRUE ) ) %>%
       ungroup() 
@@ -200,7 +210,9 @@ county_data <- function( input, output, session, data , model ,
       scale_x_date( limits = c( start_date , end_date ) , 
                     date_labels = "%m/%d" ) +
       theme_minimal() +
-      labs( x = "" , y = "") 
+      labs( x = "" , y = "" , 
+            subtitle = paste( movingAverageDays() , "day moving average" ) ,
+            source = "https://data.usafacts.org" ) 
     
     # Add model
     if ( is_tsibble( model() ) ){

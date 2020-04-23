@@ -50,7 +50,7 @@ ui <- material_page(
   material_side_nav(
 
     # image_source = "side_nav.jpeg",  
-    fixed = FALSE ,
+    fixed = TRUE ,
    
     # Place side-nav tabs within side-nav
     material_side_nav_tabs(
@@ -70,6 +70,8 @@ ui <- material_page(
                         
       material_dropdown( "statePulldown" , "State", 
                          choices = NULL , multiple = FALSE ) ,
+      
+      material_checkbox("countiesYN" , "Display county-level data", initial_value = TRUE ) ,
                         
       material_dropdown( "countyPulldown" , "County", 
                          choices = NULL , multiple = TRUE ) ,
@@ -107,7 +109,7 @@ ui <- material_page(
                         
         material_slider( "movingAverage" , "Moving average (days)", 
                          min_value = 1 , max_value = 14 ,
-                       initial_value = 1
+                       initial_value = 3
                          )
       ) ) ,
     # br() , 
@@ -137,13 +139,15 @@ ui <- material_page(
     material_row( align = 'center' , 
                   
       material_column( width = 6 , 
-        textOutput( "source" )  , 
+        h5( textOutput( "source" )  ) ) ,
+      material_column( width = 6 , 
         # material_button( 'usaFacts' , 'Fetch USA Facts data' ) ,
         h5( textOutput( "lastDate" ) )
         ) ,
-     material_column( width = 6 , 
-        material_file_input( 'dataFile' , 'Select data file*' ) ,
-      ) ,    
+      
+     # material_column( width = 6 , 
+     #    material_file_input( 'dataFile' , 'Select data file*' ) ,
+     #  ) ,    
      
      h5( textOutput( "stateTextOutput" ) ) 
       ) ,
@@ -381,6 +385,36 @@ server <- function( input, output, session ) {
           d = filter( d,  county %in% input$countyPulldown )
      }
      
+     # CountiesYN 
+     if ( ! input$countiesYN ){
+
+       # Aggregate by state
+       d = d %>% ungroup %>%
+         mutate( fips = str_sub( fips, 1, 2 ) ,
+                 county = "" ) %>%
+         group_by( state , county , fips , date ) 
+       
+        # get latlong before summarising
+        latlong = d %>% 
+          mutate_at( vars( lat, long ), as.numeric ) %>%
+          group_by( state , county , fips ) %>%
+          summarise_at( vars( lat, long ), mean, na.rm = TRUE )
+              
+        d = d %>%
+         summarise_at( vars(cases, deaths, recovered , pop ) , 
+                       sum , na.rm = TRUE )  %>%
+         ungroup() %>%
+         left_join( latlong , by = c( 'state' , 'county' , 'fips' ) )
+     
+       print( 'state' ); glimpse( d )
+     
+       } else {
+
+      # Remove unassigned or not linked with location...may cause duplicates
+      d = d %>% filter( ! county %in% 'Unassigned' )
+   
+     } 
+     
      print( 'defining variables') 
      d = d %>% 
        group_by( state, county, fips ) %>%
@@ -415,10 +449,6 @@ server <- function( input, output, session ) {
      print( 'vars'); print( input$variable ) ; 
      # glimpse( d )
      
-     # d = d %>%
-     #   ungroup() %>%
-     #   mutate( cases = !!rlang::sym( input$variable ) )
-     
      # Pivot longer 
      d = d %>% 
       pivot_longer( cols = starts_with( input$variable  ) ) %>%
@@ -428,15 +458,6 @@ server <- function( input, output, session ) {
      print( 'pivoting longer'); 
      glimpse( d )
      
-    # Remove unassigned or not linked with location...may cause duplicates
-    d = d %>% filter( ! county %in% 'Unassigned' )
-    
-    # Tsibble 
-    # print( 'duplicates' )
-    # glimpse( duplicates( d, 
-    #             key = c( state, county, fips , name ) , 
-    #             index = date ) )
-
     print( 'tsibble' )
     d = d %>% 
       as_tsibble( key = c(state, county , fips , name ) , 
@@ -660,7 +681,8 @@ server <- function( input, output, session ) {
                data  = reactive( selectedCountyData() ) ,
                model  = reactive( modelData() ) ,
                forecast = reactive( forecastData() ) ,
-               input_variables = reactive( input$variable )
+               input_variables = reactive( input$variable ) ,
+               movingAverageDays = reactive( input$movingAverage )
                )
    
 }
