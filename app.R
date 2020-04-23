@@ -25,7 +25,7 @@ pkgTest <- function( package.list = libraries ){
 }
 
 # Test if packages installed
-pkgTest( libraries )
+# pkgTest( libraries )
 
 # load the packages
 suppressMessages(
@@ -273,7 +273,7 @@ server <- function( input, output, session ) {
                       county = countName , 
                       cases = confirmed )  %>%
               mutate( 
-                countyFipsCode = ifelse( countyFipsCode %in% "" , "000" , countyFipsCode) ,
+                countyFipsCode = ifelse( is.na( countyFipsCode ) , "000" , countyFipsCode) ,
                 fips = paste0( stateFipsCode , countyFipsCode )
                 ) 
             
@@ -428,17 +428,18 @@ server <- function( input, output, session ) {
      # saveRDS( d , 'test_data.rds')
      
      # select Variable
-     vars = rlang::syms( input$variable ) 
-     print( 'vars'); print( input$variable ) ; 
-     # glimpse( d )
+     # vars = rlang::syms( input$variable ) 
+     # print( 'vars'); print( input$variable ) ; 
+     glimpse( d )
+     print( 'pivoting longer');
      
      # Pivot longer 
      d = d %>% 
       pivot_longer( cols = starts_with( input$variable  ) ) %>%
-      select( state, county, fips, date, cases, deaths, recovered, incidence ,
+      dplyr::select( state, county, fips, date, cases, deaths, recovered, incidence ,
               lat, long , pop , name, value )
      
-     print( 'pivoting longer'); 
+     
      glimpse( d )
      
     print( 'tsibble' )
