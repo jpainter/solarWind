@@ -25,7 +25,7 @@ pkgTest <- function( package.list = libraries ){
 }
 
 # Test if packages installed
-pkgTest( libraries )
+# pkgTest( libraries )
 
 # load the packages
 suppressMessages(
@@ -105,7 +105,7 @@ ui <- material_page(
                         
       material_column( "Transformations" , width = 12 , 
         
-        material_checkbox( 'scale' , 'Scale data' , initial_value = FALSE )  ,       
+        material_checkbox( 'scale' , 'Log(e)' , initial_value = FALSE )  ,       
                         
         material_slider( "movingAverage" , "Moving average (days)", 
                          min_value = 1 , max_value = 14 ,
@@ -192,13 +192,6 @@ server <- function( input, output, session ) {
     
      allCountyData = reactive({
    
-         if ( is.null( data_file() ) ){
-           
-           # NY times data... no longer used
-            # source: https://github.com/nytimes/covid-19-data
-            # url =  "https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv"
-            # data = get( url ) 
-            
            # USA Facts
            # 1. if data file exists, load it.  Display last day available
          
@@ -239,20 +232,24 @@ server <- function( input, output, session ) {
               
               print( 'getting data for this number of days') ; print(length(days))
               
-              material_modal( 'downloding' , 'ok' , 'Fetching Data from USAFacts' )
+              # material_modal( 'downloding' , 'ok' , 'Fetching Data from USAFacts' )
               
               # Get data via API
-              usa.new = future_map_dfr( days , 
-                                 ~ {
-                                      url =  paste0( "https://data.usafacts.org/covid-nineteen?api-key=" ,
+              usa.new =
+                 withProgress( 
+                   message = "Fetching data from USAFacts\n" ,
+                   detail = 'a sepearate request for each day' ,
+                   value = 0 ,
+                   {
+                     future_map_dfr( days , ~{ 
+                       url =  paste0( "https://data.usafacts.org/covid-nineteen?api-key=" ,
                                                 key , "&date=" , .x  )
-                                      d = get( url ) 
-                                      if ( !is.null(d) ) d = d %>% mutate( date = ymd( .x ) ) 
-                                   
-                                      } , .progress = TRUE 
+                       d = get( url ) 
+                       if ( !is.null(d) ) d = d %>% mutate( date = ymd( .x ) ) 
+                       incProgress( 1 / length( days ) )
+                     } )
+                     }
               )
-              
-           }
            
            if ( exists( 'usa.new' ) ) {
              
@@ -276,31 +273,17 @@ server <- function( input, output, session ) {
                       county = countName , 
                       cases = confirmed )  %>%
               mutate( 
-                countyFipsCode = ifelse( countyFipsCode %in% "" , "000" , countyFipsCode) ,
+                countyFipsCode = ifelse( is.na( countyFipsCode ) , "000" , countyFipsCode) ,
                 fips = paste0( stateFipsCode , countyFipsCode )
                 ) 
             
             print( 'data' ) ; 
-            # glimpse( data )
-            
+            glimpse( data )
+     
+           }  
+                  
             return( data )
-            
-         } else { 
-       
-           d <- read_excel( data_file() , sheet = "Case Count" ) 
-          
-           if ( "new_county_name" %in% names( d ) ){
-  
-             data  = tidyCipher( d )
-             print( paste( 'tidyCipher d ', nrow(data)) )
-             return( data )
-           
-             } else {
-             
-             return( NULL )
-           }
-         }
-         
+        
        })
      
      states = reactive({ 
@@ -445,17 +428,18 @@ server <- function( input, output, session ) {
      # saveRDS( d , 'test_data.rds')
      
      # select Variable
-     vars = rlang::syms( input$variable ) 
-     print( 'vars'); print( input$variable ) ; 
-     # glimpse( d )
+     # vars = rlang::syms( input$variable ) 
+     # print( 'vars'); print( input$variable ) ; 
+     glimpse( d )
+     print( 'pivoting longer');
      
      # Pivot longer 
      d = d %>% 
       pivot_longer( cols = starts_with( input$variable  ) ) %>%
-      select( state, county, fips, date, cases, deaths, recovered, incidence ,
+      dplyr::select( state, county, fips, date, cases, deaths, recovered, incidence ,
               lat, long , pop , name, value )
      
-     print( 'pivoting longer'); 
+     
      glimpse( d )
      
     print( 'tsibble' )
@@ -475,13 +459,14 @@ server <- function( input, output, session ) {
                ) 
 
      # Scale
-     print( 'scale' )
+     print( 'log(e)' )
+          glimpse( d )
      if (input$scale ){
            d = d %>%
              group_by( state, county , fips , name )  %>%
-             mutate_at( vars( value  ), scale ) 
+             mutate_at( vars( value  ), ~log( .x + 1 ) ) 
      }
-     # glimpse( d )
+
     
      # All - Top
      if ( input$countyPulldown %in% 'ALL' ){
@@ -554,7 +539,7 @@ server <- function( input, output, session ) {
         m = d %>%
         model( ets = ETS( value ) )  %>%
         augment %>% 
-        mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
+        mutate( value = ifelse( .fitted < 1 , .fitted , .fitted ) )
       }
       
       # STL
@@ -562,25 +547,26 @@ server <- function( input, output, session ) {
         m = d %>%
         model( stl = STL( value  ~ trend( window = 7 )) )  %>%
         components() %>% 
-        mutate( value = ifelse( trend < 1 , 0 , exp( trend ) + 1 ) )
+        mutate( value = ifelse( .fitted < 1 , .fitted , .fitted ) )
       }
       
       # ARIMA
       if ( input$model %in% 'ARIMA' ){ 
         m = d %>%
         model( arima = ARIMA( value  ) )  %>%
-        augment %>% mutate( value = .fitted ) %>%
-        mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
+        augment %>% 
+        mutate( value = ifelse( .fitted < 1 , .fitted , .fitted ) )
       }
       
       # NNETAR
       if ( input$model %in% 'NNETAR' ){ 
         m = d %>%
-        model( nnetar = NNETAR( value, P = 0  # no seasonal term
-                                # period = '1 week' 
+        model( nnetar = NNETAR( value , 
+                                # P = 0  # no seasonal term
+                                period = '1 week' 
                                 ) )  %>%
         augment %>%  
-        mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
+        mutate( value = ifelse( .fitted < 1 , .fitted , .fitted ) )
         }
       
       # TSLM
@@ -599,18 +585,20 @@ server <- function( input, output, session ) {
           group_by( state, county , fips , name ) %>%
           nest( data = c( date, value ) ) 
         
-             
         tss = t %>% mutate( ss = map( data , 
-                    ~smooth.spline( x = data[[1]]$date , y = data[[1]]$value , spar = .5 ) )
+                    ~smooth.spline( x = data[[1]]$date, 
+                                    y = data[[1]]$value , 
+                                    spar = .5 ) )
                     # ~smooth.spline( x = .x$date , y = .x$value , spar = .5 ) )
                     # ~smooth.spline( x = date , y = value , spar = .5 ) )
 ) 
-        # print( 'tss' ) ; glimpse( tss ) ; saveRDS( tss, 'tss.rds')
+        print( 'tss' ) ; glimpse( tss ) ; saveRDS( tss, 'tss.rds')
         
-        tssa =  map_df( tss$ss , augment ) %>%
-           mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
+        tssa =  map_df( tss$ss , augment ) %>% 
+        rename( value = .fitted )
+        # mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
           
-        # print( 'tssa' ) ; glimpse( tssa ) ; saveRDS( tssa, 'tssa.rds')
+        print( 'tssa' ) ; glimpse( tssa ) ; saveRDS( tssa, 'tssa.rds')
         
         m =
           bind_cols( d %>% select( state, county , fips, date, name ) ,
