@@ -11,11 +11,13 @@ county_data_UI <- function( id ) {
   
   # Create a namespace function using the provided id
   ns <- NS(id)
-                material_row( 
+  
+  fluidPage(
+                fluidRow( 
                   style="padding-left: 10px;" ,
                   textOutput( ns('stateList')) ,
                   material_column( width = 6, 
-                                   # offset = 1 ,
+
                                    textOutput( ns("movingAverageText" ) ) ,  
                                    plotlyOutput( ns('chartTS') ) ,
                                    # plotOutput( ns('chartTS') ) ,
@@ -30,13 +32,17 @@ county_data_UI <- function( id ) {
                                    ) ,
                   material_column( width = 6, 
                                    
-                                   # leaflet print plugin 
-                                   ## !! Only works in chrome and firefox
+                                   # leaflet print plugin - Only works in chrome and firefox
                                    tags$head(tags$script(src = jsfile)) ,
                                    leafletOutput( ns('map') ) ,
                                    "Map displays most recent value"
-                                   )
+                                   ) 
+                ) ,
+                  
+                fluidRow(  
+                    plotlyOutput( ns('histograms') )
                   )
+)
 
 }
 
@@ -303,6 +309,30 @@ county_data <- function( input, output, session, data , model ,
         
     return( dsf )
     }) 
+  
+  ggHistogram = reactive({
+    req( tmapData) 
+    
+    if ( is_tsibble( model() ) ){
+      
+      print( 'histogram' )
+    
+     d = count( tmapData() , name , status )
+      
+     g =  ggplot( d , aes( x = status , y = n , fill = status ) ) +
+        geom_col() +
+        scale_fill_manual( values = brewer.pal(5, "RdYlGn" )  ,
+                            drop = FALSE ) +
+       facet_wrap( ~ name , nrow = 1 )
+     
+     return( g )
+     
+    } else { return( ggplot() ) }
+    
+
+  })
+  
+  
 ### outputs ####
 
   output$chartTS = renderPlotly({ 
@@ -358,6 +388,15 @@ county_data <- function( input, output, session, data , model ,
         )
    })
    
+   # Histograms
+   output$histograms = renderPlotly({ 
+     req( tmapData() ) 
+
+     ggplotly( ggHistogram() )   
+     
+   })
+   
+  # currently unused
   output$countyCount =  renderTable({
     
     req( countyCount() )
