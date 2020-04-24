@@ -35,10 +35,22 @@ county_data_UI <- function( id ) {
                                    # leaflet print plugin - Only works in chrome and firefox
                                    tags$head(tags$script(src = jsfile)) ,
                                    leafletOutput( ns('map') ) ,
-                                   "Map displays most recent value"
-                                   ) 
-                ) ,
+
+                                   # dateRangeInput(  ns('asOf') , 'Status as of (date)' , 
+                                   #                  start = ymd( "2020-03-01" ), end = Sys.Date() , 
+                                   #                  format = "yyyy-mm-dd", 
+                                   #                  startview = "day" ) ,
+                                   
+                                   sliderInput( ns('asOf') ,
+                                                'Status as of (date)' ,
+                                               min = as.Date("2020-03-01" ,"%Y-%m-%d"),
+                                               max = as.Date( Sys.Date() ,"%Y-%m-%d"),
+                                               value = Sys.Date() - days(2),
+                                               timeFormat="%Y-%m-%d")
+                                   )
                   
+                  ) ,
+
                 fluidRow(  
                     plotlyOutput( ns('histograms') )
                   )
@@ -63,6 +75,18 @@ county_data <- function( input, output, session, data , model ,
     return( cd )
 
   }) 
+  
+  # Update date slider
+  observeEvent( data() ,{
+                
+                print( 'update date')
+                maxDate = max( data() %>% pull(date) ) 
+                print( maxDate ) ; print( class( maxDate ))
+                
+                updateSliderInput(  session, inputId = "asOf" , 
+                                   max = maxDate  ,
+                                   value = maxDate )
+  })
   
   dataTS = reactive({
     req( data() )
@@ -298,7 +322,8 @@ county_data <- function( input, output, session, data , model ,
       group_by( state, county, fips , name ) %>% 
       arrange( state, county, fips , name , desc( date ) ) %>%
       mutate( status = lead( status , 1 ) ) %>%
-      filter( row_number() == 1 ) %>%
+      # filter( row_number() == 1 ) %>%
+      filter( date %in% input$asOf ) %>%
       filter( !is.na( lat ) , !is.na( long ) ) 
   
     # convert to sf

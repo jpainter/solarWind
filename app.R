@@ -40,7 +40,7 @@ source( 'dataManagementFunctions.R' )
 # Define UI #####
 ui <- material_page(
     
-    title = "Solar Wind and Coronal Hot Spots" ,
+    title = NULL,  # "Solar Wind and Coronal Hot Spots" ,
     nav_bar_fixed = TRUE ,
     useShinyjs(),
     include_fonts = T,
@@ -76,12 +76,11 @@ ui <- material_page(
       material_dropdown( "countyPulldown" , "County", 
                          choices = NULL , multiple = TRUE ) ,
     
+      material_checkbox( 'topYN' , "Filter to top ...", initial_value = TRUE ) ,
       material_slider( 'top' , "Filter to top...(1-100)" , 
                      min_value = 1 , max_value = 200 , initial_value = 5 ) 
     
     ) ) ,
-    
-    br() ,
     
     material_row(       style="padding-left: 10px;" ,
                         
@@ -136,11 +135,12 @@ ui <- material_page(
      )   ,
   
    # MAIN window
-    material_row( align = 'center' , 
+    material_row( align = 'left' , 
                   
       material_column( width = 6 , 
         h5( textOutput( "source" )  ) ) ,
       material_column( width = 6 , 
+                       
         # material_button( 'usaFacts' , 'Fetch USA Facts data' ) ,
         h5( textOutput( "lastDate" ) )
         ) ,
