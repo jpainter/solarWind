@@ -16,21 +16,21 @@ county_data_UI <- function( id ) {
                 fluidRow( 
                   style="padding-left: 10px;" ,
                   textOutput( ns('stateList')) ,
-                  material_column( width = 6, 
+                  column( width = 6, 
 
                                    textOutput( ns("movingAverageText" ) ) ,  
                                    plotlyOutput( ns('chartTS') ) ,
                                    # plotOutput( ns('chartTS') ) ,
    
-                                   material_slider( ns('slopeCut') ,
+                                   sliderInput( ns('slopeCut') ,
                                                        'Slope cutoff' ,
-                                                       min_value = .01 ,
-                                                       max_value = .2 ,
-                                                       initial_value = .1 ,
-                                                    step_size = .01
+                                                       min = .01 ,
+                                                       max = .2 ,
+                                                       value = .1 ,
+                                                    step = .01
                                                     ) 
                                    ) ,
-                  material_column( width = 6, 
+                  column( width = 6, 
                                    
                                    # leaflet print plugin - Only works in chrome and firefox
                                    tags$head(tags$script(src = jsfile)) ,

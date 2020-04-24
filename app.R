@@ -38,114 +38,114 @@ source( 'county_data.R' )
 source( 'dataManagementFunctions.R' )
 
 # Define UI #####
-ui <- material_page(
+ui <- dashboardPagePlus(
     
     title = NULL,  # "Solar Wind and Coronal Hot Spots" ,
-    nav_bar_fixed = TRUE ,
+    # nav_bar_fixed = TRUE ,
     useShinyjs(),
-    include_fonts = T,
-    nav_bar_color = "blue" ,
+    # include_fonts = T,
+    # nav_bar_color = "blue" ,
  
+  header = dashboardHeaderPlus(
+    fixed = TRUE 
+  ),
+
   # SIDEBAR 
-  material_side_nav(
+  # material_side_nav(
+ sidebar =  dashboardSidebar(
 
     # image_source = "side_nav.jpeg",  
-    fixed = TRUE ,
+    # fixed = TRUE ,
    
     # Place side-nav tabs within side-nav
-    material_side_nav_tabs(
-      side_nav_tabs = c(
-        "County Data" = "county_data" 
-        # ,  "Data table" = "data_table"
-      ),
-      
-      icons = c("insert_chart") # "view_list"
-    ) ,
-    
-    # br(), 
+    sidebarMenu(
+      menuItem( "County Data" , "county_data"  )
+      ) ,
 
-    material_row(       style="padding-left: 10px;" ,
-                        
-      material_column( "Location" , width = 12 , 
-                        
-      material_dropdown( "statePulldown" , "State", 
+    fluidRow(       style="padding-left: 10px;" ,
+
+      column( "Location" , width = 12 ,
+
+              selectInput( "statePulldown" , "State",
                          choices = NULL , multiple = FALSE ) ,
-      
-      material_checkbox("countiesYN" , "Display county-level data", initial_value = TRUE ) ,
-                        
-      material_dropdown( "countyPulldown" , "County", 
+
+              checkboxInput("countiesYN" , "Display county-level data", value = TRUE ) ,
+              
+              selectInput( "countyPulldown" , "County",
                          choices = NULL , multiple = TRUE ) ,
-    
-      material_checkbox( 'topYN' , "Filter to top ...", initial_value = TRUE ) ,
-      material_slider( 'top' , "Filter to top...(1-100)" , 
-                     min_value = 1 , max_value = 200 , initial_value = 5 ) 
-    
+              checkboxInput( 'topYN' , "Filter to top ...", value = TRUE ) ,
+              
+              sliderInput( 'top' , "Filter to top...(1-100)" ,
+                     min = 1 , max = 200 , value = 5 )
+
     ) ) ,
-    
-    material_row(       style="padding-left: 10px;" ,
-                        
-      material_dropdown( "variable" , "Variable (may select multiple)", 
-                         choices = c( "cumulativeCases" , 
+
+    fluidRow(       style="padding-left: 10px;" ,
+
+      selectInput( "variable" , "Variable (may select multiple)",
+                         choices = c( "cumulativeCases" ,
                                       "cumulativeCaseIncidence" ,
                                       "dailyCases",
                                       "dailyCaseIncidence" ,
-                                      "dailyActiveCases" , 
+                                      "dailyActiveCases" ,
                                       "dailyActiveIncidence" ,
-                                      "cumulativeDeaths" , 
+                                      "cumulativeDeaths" ,
                                       "cumulativeMortality" ,
                                       "dailyDeaths",
                                       "dailyMortality") ,
                          selected = c( "dailyCases","dailyCaseIncidence" ) ,
-                         multiple = TRUE 
+                         multiple = TRUE
                          )
       ) ,
 
-    material_row(       style="padding-left: 10px;" ,
-                        
-      material_column( "Transformations" , width = 12 , 
-        
-        material_checkbox( 'scale' , 'Log(e)' , initial_value = FALSE )  ,       
-                        
-        material_slider( "movingAverage" , "Moving average (days)", 
-                         min_value = 1 , max_value = 14 ,
-                       initial_value = 3
+    fluidRow(       style="padding-left: 10px;" ,
+
+      column( "Transformations" , width = 12 ,
+
+        checkboxInput( 'scale' , 'Log(e)' , value = FALSE )  ,
+
+        sliderInput( "movingAverage" , "Moving average (days)",
+                         min = 1 , max = 14 , value = 3
                          )
       ) ) ,
-    # br() , 
+
     # Models
-    material_row(       style="padding-left: 10px;" ,
-                        
-      material_checkbox( "modelYN" , "Add Model", 
-                         initial_value = FALSE
+    fluidRow(       style="padding-left: 10px;" ,
+
+      checkboxInput( "modelYN" , "Add Model",
+                         value = FALSE
                          )
       ) ,
-    material_row(       style="padding-left: 10px;" ,
-                        
-      material_dropdown( "model" , "Model type", 
-                         choices = c( "ARIMA" ,"ETS" , # "STL" , 
-                                      # "TSLM" , 
+    fluidRow(       style="padding-left: 10px;" ,
+
+      selectInput( "model" , "Model type",
+                         choices = c( "ARIMA" ,"ETS" , # "STL" ,
+                                      # "TSLM" ,
                                       "NNETAR" , "Spline") ,
                          selected = "Spline"
                          ) ,
-      
-      material_checkbox( "forecastYN" , "Add Forecast", 
-                         initial_value = FALSE
+
+      checkboxInput( "forecastYN" , "Add Forecast",
+                         value = FALSE
                          )
       )
+
+    # end sidebar
      )   ,
   
    # MAIN window
-    material_row( align = 'left' , 
+    body = dashboardBody(
+      fluidRow( align = 'left' , 
                   
-      material_column( width = 6 , 
+      column( width = 6 , 
         h5( textOutput( "source" )  ) ) ,
-      material_column( width = 6 , 
+      column( width = 6 , 
                        
         # material_button( 'usaFacts' , 'Fetch USA Facts data' ) ,
         h5( textOutput( "lastDate" ) )
         ) ,
       
-     # material_column( width = 6 , 
+     # column( width = 6 , 
      #    material_file_input( 'dataFile' , 'Select data file*' ) ,
      #  ) ,    
      
@@ -153,16 +153,12 @@ ui <- material_page(
       ) ,
   
    # TAB Modules -- content for main window
-    material_side_nav_tab_content(
-      side_nav_tab_id = "county_data",
-      county_data_UI( 'countyDataModule' )
+    tabItems(
+      tabItem( tabName = "county_data" , 
+               county_data_UI( 'countyDataModule' )
+      )
     ) 
-  
-   # , material_side_nav_tab_content(
-   #    side_nav_tab_id = "data_table",
-   #    county_data_UI( 'countyDataModule' )
-   #  ) 
-
+   )
 )
 
 # Server ####
@@ -298,15 +294,15 @@ server <- function( input, output, session ) {
  
     observeEvent( states()  , {
        # print( states() )
-       update_material_dropdown( session, input_id = 'statePulldown' ,
+      updateSelectInput( session, inputId = 'statePulldown' ,
                                  choices =  c( 'US' , states() ) ,
-                                 value = 'US'
+                                 selected = 'US'
                                  ) 
      })
     
     # turn off model when selecting new state
     observeEvent( input$statePulldown , {
-      update_material_checkbox( session, input_id = "modelYN" , value = FALSE )
+      updateCheckboxInput( session, inputId = "modelYN" , value = FALSE )
     })
   
   counties = reactive({ 
@@ -323,9 +319,9 @@ server <- function( input, output, session ) {
    
   observeEvent( counties()  , {
      # print( states() )
-     update_material_dropdown( session, input_id = 'countyPulldown' ,
+     updateSelectInput( session, inputId = 'countyPulldown' ,
                                choices =  c( 'ALL' , counties() ) ,
-                               value = 'ALL'
+                               selected = 'ALL'
                                )
    })
  

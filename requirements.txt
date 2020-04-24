@@ -4,6 +4,8 @@ curl
 shiny
 shinyjs
 shinymaterial
+shinydashboard
+shinydashboardPlus
 htmlwidgets
 tmap
 leaflet
