@@ -46,7 +46,8 @@ county_data_UI <- function( id ) {
                                                min = as.Date("2020-03-01" ,"%Y-%m-%d"),
                                                max = as.Date( Sys.Date() ,"%Y-%m-%d"),
                                                value = Sys.Date() - days(2),
-                                               timeFormat="%Y-%m-%d")
+                                               timeFormat="%Y-%m-%d" ,
+                                               animate = TRUE )
                                    )
                   
                   ) ,
@@ -61,6 +62,7 @@ county_data_UI <- function( id ) {
 # Server function ####
 county_data <- function( input, output, session, data , model , 
                          forecastData ,
+                         precastData ,
                          input_variables ,
                          movingAverageDays 
                          ) {
@@ -76,10 +78,47 @@ county_data <- function( input, output, session, data , model ,
 
   }) 
   
+  
+  start_date = reactive({ 
+    
+    req( data() )
+    
+    # start date
+    if ( length( unique( data()$fips ) ) > 5 ){
+      min.num = 5
+    } else {
+      min.num = 0
+    }
+    
+     d = data()%>% as_tibble() %>%
+      filter( cases <= min.num ) %>% 
+      group_by( county, state, fips ) %>%
+      summarise( date = max( date , na.rm = TRUE ) ) %>%
+      ungroup() 
+    
+    start_date = min( d$date )
+    
+    return( start_date )
+    })
+  
+  end_date = reactive({
+    req( data())
+    
+    # end date
+    end_date = data() %>% pull( date ) %>% max
+    
+    print( 'end_date date type') ; print( class( end_date ) ) ; print( end_date )
+    
+    return( end_date ) 
+    
+  })
+  
   # Update date slider
   observeEvent( data() ,{
                 
                 print( 'update date')
+                minDate = start_date()
+                
                 maxDate = max( data() %>% pull(date) ) 
                 print( maxDate ) ; print( class( maxDate ))
                 
@@ -90,7 +129,7 @@ county_data <- function( input, output, session, data , model ,
   
   dataTS = reactive({
     req( data() )
-    print( 'dataTS')
+    print( 'dataTS') ; print( 'testing model') ; print( is.na( model())) ; print( model() ) ; 
     
     d = data() %>% mutate( status = value )
     m = model() 
@@ -104,7 +143,7 @@ county_data <- function( input, output, session, data , model ,
                      # y is the fitted value of the model .. Eq to .fitted
                      ,  by = c( 'state', 'county', 'fips' , 'name' , 'date' )) 
         
-        glimpse( d )
+        # glimpse( d )
         
         # Cut offs
         low.inc.cut = 10
@@ -187,32 +226,15 @@ county_data <- function( input, output, session, data , model ,
     d = dataTS() 
 
     print( 'dataTS pivot data') ; 
-    glimpse( d )
+    # glimpse( d )
     
     # Dynamic Facets
     facets = as.formula( paste( "~", "name") )
-    
-    # start date
-    if ( length( unique( d$fips ) ) > 5 ){
-      min.num = 5
-    } else {
-      min.num = 0
-    }
+
       
-    start_date = d %>% as_tibble() %>%
-      filter( cases <= min.num ) %>% 
-      group_by( county, state, fips ) %>%
-      summarise( date = max( date , na.rm = TRUE ) ) %>%
-      ungroup() 
+    print( 'start date' ) ; print( start_date() )
     
-    print( 'start date' ) ; print( start_date )
-    
-    start_date = min( start_date$date )
-    
-    # end date
-    end_date = d %>% pull( date ) %>% max
-    
-    print( 'min date'); print( start_date )
+    print( 'end date'); print( end_date() )
     
     d = d %>%
       ungroup %>%
@@ -227,19 +249,27 @@ county_data <- function( input, output, session, data , model ,
     # bar chart vs line chart
     print( 'distinct fips') ; print( unique( d$fips ) ) 
     if ( length( unique( d$fips ) ) > 1 ){
-      g = g + geom_line() 
+      g = g + geom_line( alpha = .7 , size = .7 ) 
+      
     } else {
       g = g + geom_col() 
     }
+    
+    print( 'vertical line') ; print( input$asOf ) 
      
      # facets 
      g = g +
        facet_wrap( facets, 
                   ncol = 1 , scales = 'free' , 
                   strip.position = "top" , labeller = label_value ) + 
-      scale_x_date( limits = c( start_date , end_date ) , 
+       
+      scale_x_date( limits = c( start_date() , end_date() ) , 
                     date_labels = "%m/%d" ) +
+       
+      geom_vline( xintercept = as.numeric( ymd( input$asOf ) ) , size = .5  ) +
+       
       theme_minimal() +
+       
       labs( x = "" , y = "" , 
             subtitle = paste( movingAverageDays() , "day moving average" ) ,
             source = "https://data.usafacts.org" ) 
@@ -255,7 +285,8 @@ county_data <- function( input, output, session, data , model ,
         # geom_line( data = m , aes( y = y , color = cat , group = 1 ) ) +
         geom_segment( data = d , aes(x = date, xend = lead_x , 
                           y = fit, yend = lead_y , color = status ,
-                          group = fips )
+                          group = fips ) ,
+                      alpha = .75 , size = .75
         ) +
         # scale_color_brewer( palette =  "RdYlGn",  type = "div" , drop = FALSE )
         
@@ -272,12 +303,17 @@ county_data <- function( input, output, session, data , model ,
     }
     
     # Add forecast
+     print( 'forecast') ;
+     # glimpse(forecastData())
+     
     if ( is_tsibble( forecastData() ) ){
 
       print( 'forecastData' )
       # glimpse( forecastData() )
 
       f = forecastData()  %>% hilo %>% unnest( `95%` )
+      
+      end_date = max( f$date )
 
       print( 'chart f' );
       # glimpse( f )
@@ -285,23 +321,46 @@ county_data <- function( input, output, session, data , model ,
       g = g +
         # fitted line
         # geom_line( data = m , aes( y = y , color = cat , group = 1 ) ) +
-        geom_line( data = f , aes(x = date, y = pred , group = fips ) ,
+        geom_line( data = f , aes(x = date, y = value , group = fips ) ,
                    color = 'brown' , alpha=0.5 ) +
         geom_ribbon( data = f ,
                      aes( ymin = .lower, ymax = .upper ) , 
-                     color = 'brown' , alpha=0.2 )
+                     color = 'brown' , alpha=0.2 ) +
+        scale_x_date( limits = c( start_date() , end_date ) ) 
+                      
       # +
       #   scale_color_manual(
       #     values = c( "growing" = "red", "plateau" = "blue" , "declining" = "green") ,
       #     )
     }
+     
+     if ( is_tsibble( precastData() ) ){
+       
+       print( 'forecastData' )
+       # glimpse( forecastData() )
+       
+       p = precastData()  %>% hilo %>% unnest( `95%` )
+       
+       end_date = max( p$date )
+       
+       print( 'chart p' );
+       # glimpse( p )
+       
+       g = g +
+         geom_line( data = p , aes(x = date, y = value , group = fips ) ,
+                    color = 'blue' , alpha=0.5 ) +
+         geom_ribbon( data = p ,
+                      aes( ymin = .lower, ymax = .upper ) , 
+                      color = 'blue' , alpha=0.2 ) 
+       
+     }
       return( g )
   }) 
 
   tmapData = reactive({ 
     req( dataTS() )
     
-    print( 'tmapData' )
+    print( 'tmapData' ) ; glimpse( dataTS() )
     
     if ( nrow( dataTS() ) == 0 ) return( NULL )
       
@@ -381,6 +440,13 @@ county_data <- function( input, output, session, data , model ,
      # pal = c( growing = "red", plateau = "blue" , declining = "green")
    }
      
+    # split features into map for each level
+    # split_tmapData = split( tmapData() , tmapData()$name )
+    #  
+    # st_crs( split_tmapData ) = 4326
+    # 
+    # print( 'split_tmapData') ; glimpse( split_tmapData )
+    
    tm = tm_shape( tmapData() ) +
      tm_dots( id = 'county' , size = 'value' , 
               scale = 3 , 

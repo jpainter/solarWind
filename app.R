@@ -40,11 +40,20 @@ source( 'dataManagementFunctions.R' )
 # Define UI #####
 ui <- material_page(
     
-    title = NULL,  # "Solar Wind and Coronal Hot Spots" ,
+    title = "Source: USAFacts (https://data.usafacts.org)",  # "Solar Wind and Coronal Hot Spots" ,
     nav_bar_fixed = TRUE ,
     useShinyjs(),
     include_fonts = T,
     nav_bar_color = "blue" ,
+    
+    material_modal(
+      modal_id = "message",
+      button_text = "wait up to 30 sec",
+      button_icon = "open_in_browser",
+      title = "Preparing time-series" ,
+      tags$p("Modal Content") ,
+      display_button = FALSE
+    ) , 
  
   # SIDEBAR 
   material_side_nav(
@@ -77,6 +86,7 @@ ui <- material_page(
                          choices = NULL , multiple = TRUE ) ,
     
       material_checkbox( 'topYN' , "Filter to top ...", initial_value = TRUE ) ,
+      
       material_slider( 'top' , "Filter to top...(1-100)" , 
                      min_value = 1 , max_value = 200 , initial_value = 5 ) 
     
@@ -127,18 +137,23 @@ ui <- material_page(
                                       "NNETAR" , "Spline") ,
                          selected = "Spline"
                          ) ,
-      
       material_checkbox( "forecastYN" , "Add Forecast", 
                          initial_value = FALSE
-                         )
+                         ) ,
+      material_checkbox( "precastYN" , "Show Precast", 
+                         initial_value = FALSE
       )
+      )
+    
      )   ,
   
    # MAIN window
     material_row( align = 'left' , 
                   
       material_column( width = 6 , 
-        h5( textOutput( "source" )  ) ) ,
+                       h5( textOutput( "stateTextOutput" ) ) 
+                       # h5( textOutput( "source" )  ) 
+                       ) ,
       material_column( width = 6 , 
                        
         # material_button( 'usaFacts' , 'Fetch USA Facts data' ) ,
@@ -149,7 +164,7 @@ ui <- material_page(
      #    material_file_input( 'dataFile' , 'Select data file*' ) ,
      #  ) ,    
      
-     h5( textOutput( "stateTextOutput" ) ) 
+    
       ) ,
   
    # TAB Modules -- content for main window
@@ -450,6 +465,9 @@ server <- function( input, output, session ) {
     
     # Moving average
     print( 'moving average' )
+    material_spinner_show(session, "moving_average")
+    # open_material_modal( session , 'message')
+    
     d = d %>%
        group_by( state, county , fips, name )  %>%
        mutate_at( vars( value ) ,
@@ -457,7 +475,9 @@ server <- function( input, output, session ) {
                               mean, na.rm = TRUE ,
                               .before = input$movingAverage - 1)
                ) 
-
+    material_spinner_hide(session, "moving_average")
+    # close_material_modal( session , 'message')
+    
      # Scale
      print( 'log(e)' )
           glimpse( d )
@@ -515,59 +535,45 @@ server <- function( input, output, session ) {
      return( d )
    })
    
-  # Model data ####
-  modelData = reactive({
-    req( selectedCountyData() )
-    # req( input$modelYN )
+  # Model ####
+  model = reactive({
     
+    req( selectedCountyData() )
+
     print( 'model d') ; 
     d = selectedCountyData() 
-      # pivot_longer( cols = starts_with( input$variable  ) ) %>%
-      # arrange( state, county , fips , name, date ) %>%
-      # as_tsibble( key = c(state, county , fips , name ) , index = date )
     
-    # glimpse( d )
-    
+    # print( d )
+
     # ensure no missing values:  set NA to 0 
     d$value[ is.na( d$value) ] = 0
-
+    
     # if ( input$modelYN & input$countyPulldown != 'ALL' ){
     if ( input$modelYN  ){
- 
+      
       # ETS
       if ( input$model %in% 'ETS' ){ 
         m = d %>%
-        model( ets = ETS( value ) )  %>%
-        augment %>% 
-        mutate( value = ifelse( .fitted < 1 , .fitted , .fitted ) )
+          fabletools::model(. ,  ets = ETS( value ) )  
       }
       
       # STL
       if ( input$model %in% 'STL' ){ 
         m = d %>%
-        model( stl = STL( value  ~ trend( window = 7 )) )  %>%
-        components() %>% 
-        mutate( value = ifelse( .fitted < 1 , .fitted , .fitted ) )
+          fabletools::model(. ,  stl = STL( value  ~ trend( window = 7 )) )  
       }
       
       # ARIMA
       if ( input$model %in% 'ARIMA' ){ 
         m = d %>%
-        model( arima = ARIMA( value  ) )  %>%
-        augment %>% 
-        mutate( value = ifelse( .fitted < 1 , .fitted , .fitted ) )
+          fabletools::model( . ,  arima = ARIMA( value ) )  
       }
       
       # NNETAR
       if ( input$model %in% 'NNETAR' ){ 
         m = d %>%
-        model( nnetar = NNETAR( value , 
-                                # P = 0  # no seasonal term
-                                period = '1 week' 
-                                ) )  %>%
-        augment %>%  
-        mutate( value = ifelse( .fitted < 1 , .fitted , .fitted ) )
-        }
+          fabletools::model(. , nnetar = NNETAR( box_cox( value, .1 ) ,  period = '7 days'  ) ) 
+      }
       
       # TSLM
       # if ( input$model %in% 'TSLM' ){ 
@@ -579,69 +585,133 @@ server <- function( input, output, session ) {
       
       # Spline
       if ( input$model %in% 'Spline' ){ 
-       
+        
         t = d %>%
           select( state, county , fips, date, name, value  ) %>%
           group_by( state, county , fips , name ) %>%
           nest( data = c( date, value ) ) 
         
         tss = t %>% mutate( ss = map( data , 
-                    ~smooth.spline( x = data[[1]]$date, 
-                                    y = data[[1]]$value , 
-                                    spar = .5 ) )
-                    # ~smooth.spline( x = .x$date , y = .x$value , spar = .5 ) )
-                    # ~smooth.spline( x = date , y = value , spar = .5 ) )
-) 
-        print( 'tss' ) ; glimpse( tss ) ; saveRDS( tss, 'tss.rds')
+                                      ~smooth.spline( x = data[[1]]$date, 
+                                                      y = data[[1]]$value , 
+                                                      spar = .5 ) )
+                            # ~smooth.spline( x = .x$date , y = .x$value , spar = .5 ) )
+                            # ~smooth.spline( x = date , y = value , spar = .5 ) )
+        )
         
-        tssa =  map_df( tss$ss , augment ) %>% 
-        rename( value = .fitted )
-        # mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
+        m = tss
+      }
+      
+      return( m )
+      
+    } else { return( NA ) }
+        
+      
+  })
+  
+  # Model data ####
+  modelData = reactive({
+    req( selectedCountyData() )
+    
+    d = selectedCountyData() 
+    
+    # ensure no missing values:  set NA to 0 
+    d$value[ is.na( d$value) ] = 0
+    
+      if ( input$modelYN ){
+        
+      print( 'model data')  
+      
+      if ( input$model %in% 'STL' ){
+        
+        md = model()  %>%
+          components() %>%  
+          mutate( value = ifelse( .fitted < 1 , .fitted , .fitted ) )
+        
+      }
+      
+      if ( input$model %in% 'Spline' ){ 
+        
+        md = model()
+        
+          print( 'spline m' ) ; glimpse( md ) ; saveRDS( md, 'spline_m.rds')
           
-        print( 'tssa' ) ; glimpse( tssa ) ; saveRDS( tssa, 'tssa.rds')
+          tssa =  map_df( md$ss , augment ) %>% 
+          rename( value = .fitted )
+          # mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
+            
+          print( 'tssa' ) ; glimpse( tssa ) ; saveRDS( tssa, 'tssa.rds')
+          
+          md =
+            bind_cols( d %>% select( state, county , fips, date, name ) ,
+                      tssa ) %>%
+            arrange( state, county , fips , name , date ) %>%
+            as_tsibble( index = date, key = c( county, state, fips, name ) ) 
+      }
+      
+      if ( ! input$model %in% c('Spline', 'STL') ){ 
+          
+      md = model()  %>%
+        augment %>%  
+        mutate( value = ifelse( .fitted < 1 , .fitted , .fitted ) )
+      
+      }
         
-        m =
-          bind_cols( d %>% select( state, county , fips, date, name ) ,
-                    tssa ) %>%
-          arrange( state, county , fips , name , date ) %>%
-          as_tsibble( index = date, key = c( county, state, fips, name ) ) 
-        }
+      # print( input$model )
+      # glimpse( md )
+      
 
-    } else { m = NA }
+    } else { md = NA }
     
-    print('model') ; print( input$model )
-    # glimpse( m )
-    
-    return( m )
+    return( md )
   })
 
   # FORECASTING ####
     forecastData = reactive({
-    req( selectedCountyData() )
-    
-    if ( input$modelYN & input$forecastYN ){ 
+
+    if ( input$modelYN & ( input$forecastYN | input$precastYN ) ){ 
+      
+      print( 'forecasting...')
+      
       d = selectedCountyData() %>%
         # pivot_longer( cols = starts_with( input$variable  ) ) %>%
-        mutate( value = ifelse( is.na( value ) , 0 , value ) ) %>%
-        arrange( state, county , fips , name, date ) %>%
-        as_tsibble( key = c(state, county , fips , name ) , index = date )
-  
+        mutate( value = ifelse( is.na( value ) | is.nan( value ) , 0 , value ) ) 
+      
+      maxDate = max( d$date )
+      days_previous = 14 
+      model_period = '7 days'
+      
+      
       if ( input$model %in% 'NNETAR' ){
+        
          print( 'forecast: input model in NNETAR' )
+       
+        if ( input$forecastYN ){ 
           
-        m = d %>%
-            model( nnetar = NNETAR( value, period = '1 week' ) )
+          m = model()
           
-        print( m )
+          f = m %>% forecast( h = '2 weeks' , times = 10 ) 
+          
+        } else { f = NULL }
         
-        f = m %>% forecast( h = '2 weeks' , times = 10 ) %>% 
-          rename( pred = value )
-        
-        print( f ) 
+        if ( input$precastYN ){
           
-          } else { return() }
+          d.pre = d %>% filter( date < ( maxDate - days(days_previous)) )
+          
+          m.pre = d.pre %>%
+            model( nnetar = NNETAR( log( value + 1 ) , period = model_period ) )
+          
+          f.pre = m.pre %>% forecast( h = '2 weeks' , times = 10 ,
+                                        new_data = d %>% 
+                                          filter( date >= (maxDate - days(days_previous)) )
+            )
+            
+          } else { f.pre = NULL } 
+        
+        } else { return() }
 
-    return( f )
+    return( list( forecast = f , precast = f.pre ) )
+      
     } else { return() }
   })
     
@@ -668,7 +738,8 @@ server <- function( input, output, session ) {
    callModule( county_data , "countyDataModule" ,
                data  = reactive( selectedCountyData() ) ,
                model  = reactive( modelData() ) ,
-               forecast = reactive( forecastData() ) ,
+               forecastData = reactive( forecastData()$forecast ) ,
+               precastData = reactive( forecastData()$precast ) ,
                input_variables = reactive( input$variable ) ,
                movingAverageDays = reactive( input$movingAverage )
                )
