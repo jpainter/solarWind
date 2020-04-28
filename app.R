@@ -8,28 +8,28 @@
 libraries = readLines( con = file( 'requirements.txt' ) , warn=FALSE )
 libraries = gsub(" ", "" ,  libraries)
 
-pkgTest <- function( package.list = libraries ){
-
-  missing.packages = setdiff( package.list , rownames( installed.packages() ) )
-
-  if ( length( missing.packages ) > 0 & nchar( missing.packages[1] ) ){
-    print( missing.packages )
-
-        install.packages( missing.packages
-                          # , dependencies = TRUE ,
-                          # , type="source" ,
-                          # , repos = "https://cran.rstudio.com"
-                          )
-    }
-
-}
+# pkgTest <- function( package.list = libraries ){
+# 
+#   missing.packages = setdiff( package.list , rownames( installed.packages() ) )
+# 
+#   if ( length( missing.packages ) > 0 & nchar( missing.packages[1] ) ){
+#     print( missing.packages )
+# 
+#         install.packages( missing.packages
+#                           # , dependencies = TRUE ,
+#                           # , type="source" ,
+#                           # , repos = "https://cran.rstudio.com"
+#                           )
+#     }
+# 
+# }
 
 # Test if packages installed
 # pkgTest( libraries )
 
 # load the packages
 suppressMessages(
-  lapply( libraries , require  , character.only = TRUE)
+  lapply( libraries , library  , character.only = TRUE)
 )
 
 
@@ -489,7 +489,7 @@ server <- function( input, output, session ) {
 
     
      # All - Top
-     if ( input$countyPulldown %in% 'ALL' ){
+     if ( input$countyPulldown %in% 'ALL' & input$topYN ){
        
        print( 'top filter' )
        print( 'is tsibble ') ; print( is_tsibble( d ) )
