@@ -266,7 +266,8 @@ county_data <- function( input, output, session, data , model ,
       scale_x_date( limits = c( start_date() , end_date() ) , 
                     date_labels = "%m/%d" ) +
        
-      geom_vline( xintercept = as.numeric( ymd( input$asOf ) ) , size = .5  ) +
+      geom_vline( xintercept = as.numeric( ymd( input$asOf ) ) , 
+                  size = .3, alpha = .5 , color = 'blue' ) +
        
       theme_minimal() +
        

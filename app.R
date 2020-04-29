@@ -4,31 +4,13 @@
 
 # Libraries ####
 # Function to test if package is installed
-
-libraries = readLines( con = file( 'requirements.txt' ) , warn=FALSE )
+con = file( 'requirements.txt' ) 
+libraries = readLines( con , warn=FALSE )
+close( con )
 libraries = gsub(" ", "" ,  libraries)
 
-# pkgTest <- function( package.list = libraries ){
-# 
-#   missing.packages = setdiff( package.list , rownames( installed.packages() ) )
-# 
-#   if ( length( missing.packages ) > 0 & nchar( missing.packages[1] ) ){
-#     print( missing.packages )
-# 
-#         install.packages( missing.packages
-#                           # , dependencies = TRUE ,
-#                           # , type="source" ,
-#                           # , repos = "https://cran.rstudio.com"
-#                           )
-#     }
-# 
-# }
-
-# Test if packages installed
-# pkgTest( libraries )
-
 # load the packages
-suppressMessages(
+suppressWarnings(
   lapply( libraries , library  , character.only = TRUE)
 )
 
@@ -114,7 +96,7 @@ ui <- material_page(
                         
       material_column( "Transformations" , width = 12 , 
         
-        material_checkbox( 'scale' , 'Log(e)' , initial_value = FALSE )  ,       
+        # material_checkbox( 'scale' , 'Log(e)' , initial_value = FALSE )  ,       
                         
         material_slider( "movingAverage" , "Moving average (days)", 
                          min_value = 1 , max_value = 14 ,
@@ -250,18 +232,19 @@ server <- function( input, output, session ) {
               # material_modal( 'downloding' , 'ok' , 'Fetching Data from USAFacts' )
               
               # Get data via API
-              usa.new =
-                 withProgress( 
+                withProgress(
                    message = "Fetching data from USAFacts\n" ,
                    detail = 'a sepearate request for each day' ,
                    value = 0 ,
                    {
+                     usa.new = 
                      future_map_dfr( days , ~{ 
                        url =  paste0( "https://data.usafacts.org/covid-nineteen?api-key=" ,
                                                 key , "&date=" , .x  )
                        d = get( url ) 
                        if ( !is.null(d) ) d = d %>% mutate( date = ymd( .x ) ) 
                        incProgress( 1 / length( days ) )
+                       d
                      } )
                      }
               )
@@ -269,9 +252,12 @@ server <- function( input, output, session ) {
            if ( exists( 'usa.new' ) ) {
              
              print( 'creating updated usa data file' )
+             glimpse( usa.new ) 
              
              if ( exists( "usa" ) ){
+               print( 'binding old and new' )
                usa = bind_rows( usa , usa.new ) 
+               
              } else {
                usa = usa.new
              }
@@ -292,8 +278,9 @@ server <- function( input, output, session ) {
                 fips = paste0( stateFipsCode , countyFipsCode )
                 ) 
             
-            print( 'data' ) ; 
-            glimpse( data )
+            print( 'most recent date after update' ) ;  
+            print( max( usa.new$date )) ; print( max( usa$date )) ; print( max( data$date ))
+            # glimpse( data )
      
            }  
                   
@@ -479,13 +466,13 @@ server <- function( input, output, session ) {
     # close_material_modal( session , 'message')
     
      # Scale
-     print( 'log(e)' )
-          glimpse( d )
-     if (input$scale ){
-           d = d %>%
-             group_by( state, county , fips , name )  %>%
-             mutate_at( vars( value  ), ~log( .x + 1 ) ) 
-     }
+     # print( 'log(e)' )
+     #      glimpse( d )
+     # if (input$scale ){
+     #       d = d %>%
+     #         group_by( state, county , fips , name )  %>%
+     #         mutate_at( vars( value  ), ~log( .x + 1 ) ) 
+     # }
 
     
      # All - Top
