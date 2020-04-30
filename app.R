@@ -122,9 +122,21 @@ ui <- material_page(
       material_checkbox( "forecastYN" , "Add Forecast", 
                          initial_value = FALSE
                          ) ,
-      material_checkbox( "precastYN" , "Show Precast", 
-                         initial_value = FALSE
-      )
+      
+    sliderInput( "forecastAsOf" , "as of..." ,
+                 min = Sys.Date() - days(60)  ,
+                 max = Sys.Date()  ,
+                 value = Sys.Date() - days(2) ,
+                 timeFormat="%Y-%m-%d"  )
+
+      # material_slider( "forecastAsOf" ,"as of..." ,
+      #                  min_value = Sys.Date() - days(60) ,
+      #                  max_value = Sys.Date() ,
+      #                  initial_value = Sys.Date()
+      #                  )
+      # material_checkbox( "precastYN" , "Show Precast", 
+      #                    initial_value = FALSE
+      # )
       )
     
      )   ,
@@ -523,12 +535,23 @@ server <- function( input, output, session ) {
    })
    
   # Model ####
+  
+  maxDate = reactive({
+    req( selectedCountyData() )
+    
+    d = selectedCountyData() 
+    maxDate = max( d$date )
+  })
+  
   model = reactive({
     
     req( selectedCountyData() )
-
     print( 'model d') ; 
-    d = selectedCountyData() 
+    
+    dateAsOF = input$forecastAsOf 
+    
+    d = selectedCountyData() %>%
+      filter( date <= dateAsOF )
     
     # print( d )
 
@@ -600,7 +623,10 @@ server <- function( input, output, session ) {
   modelData = reactive({
     req( selectedCountyData() )
     
-    d = selectedCountyData() 
+    dateAsOF = input$forecastAsOf 
+    
+    d = selectedCountyData() %>%
+      filter( date <= dateAsOF )
     
     # ensure no missing values:  set NA to 0 
     d$value[ is.na( d$value) ] = 0
@@ -656,16 +682,17 @@ server <- function( input, output, session ) {
   # FORECASTING ####
     forecastData = reactive({
 
-    if ( input$modelYN & ( input$forecastYN | input$precastYN ) ){ 
+    if ( input$modelYN & ( input$forecastYN ) ){ 
       
       print( 'forecasting...')
       
-      d = selectedCountyData() %>%
+    dateAsOF = input$forecastAsOf 
+    
+    d = selectedCountyData() %>%
+      filter( date <= dateAsOF ) %>%
         # pivot_longer( cols = starts_with( input$variable  ) ) %>%
         mutate( value = ifelse( is.na( value ) | is.nan( value ) , 0 , value ) ) 
       
-      maxDate = max( d$date )
-      days_previous = 14 
       model_period = '7 days'
       
       
@@ -677,27 +704,13 @@ server <- function( input, output, session ) {
           
           m = model()
           
-          f = m %>% forecast( h = '2 weeks' , times = 10 ) 
+          f = m %>% forecast( h = model_period , times = 10 ) 
           
         } else { f = NULL }
         
-        if ( input$precastYN ){
-          
-          d.pre = d %>% filter( date < ( maxDate - days(days_previous)) )
-          
-          m.pre = d.pre %>%
-            model( nnetar = NNETAR( log( value + 1 ) , period = model_period ) )
-          
-          f.pre = m.pre %>% forecast( h = '2 weeks' , times = 10 ,
-                                        new_data = d %>% 
-                                          filter( date >= (maxDate - days(days_previous)) )
-            )
-            
-          } else { f.pre = NULL } 
-        
         } else { return() }
 
-    return( list( forecast = f , precast = f.pre ) )
+    return( list( forecast = f  ) )
       
     } else { return() }
   })
@@ -726,7 +739,7 @@ server <- function( input, output, session ) {
                data  = reactive( selectedCountyData() ) ,
                model  = reactive( modelData() ) ,
                forecastData = reactive( forecastData()$forecast ) ,
-               precastData = reactive( forecastData()$precast ) ,
+               # precastData = reactive( forecastData()$precast ) ,
                input_variables = reactive( input$variable ) ,
                movingAverageDays = reactive( input$movingAverage )
                )

@@ -62,7 +62,7 @@ county_data_UI <- function( id ) {
 # Server function ####
 county_data <- function( input, output, session, data , model , 
                          forecastData ,
-                         precastData ,
+                         # precastData ,
                          input_variables ,
                          movingAverageDays 
                          ) {
@@ -314,7 +314,9 @@ county_data <- function( input, output, session, data , model ,
 
       f = forecastData()  %>% hilo %>% unnest( `95%` )
       
-      end_date = max( f$date )
+      # expand date range if forecast past last date in data
+      if ( max( f$date ) > end_date() ){ end_date = max( f$date ) 
+      } else { end_date = end_date() }
 
       print( 'chart f' );
       # glimpse( f )
@@ -335,26 +337,26 @@ county_data <- function( input, output, session, data , model ,
       #     )
     }
      
-     if ( is_tsibble( precastData() ) ){
-       
-       print( 'forecastData' )
-       # glimpse( forecastData() )
-       
-       p = precastData()  %>% hilo %>% unnest( `95%` )
-       
-       end_date = max( p$date )
-       
-       print( 'chart p' );
-       # glimpse( p )
-       
-       g = g +
-         geom_line( data = p , aes(x = date, y = value , group = fips ) ,
-                    color = 'blue' , alpha=0.5 ) +
-         geom_ribbon( data = p ,
-                      aes( ymin = .lower, ymax = .upper ) , 
-                      color = 'blue' , alpha=0.2 ) 
-       
-     }
+     # if ( is_tsibble( precastData() ) ){
+     #   
+     #   print( 'forecastData' )
+     #   # glimpse( forecastData() )
+     #   
+     #   p = precastData()  %>% hilo %>% unnest( `95%` )
+     #   
+     #   end_date = max( p$date )
+     #   
+     #   print( 'chart p' );
+     #   # glimpse( p )
+     #   
+     #   g = g +
+     #     geom_line( data = p , aes(x = date, y = value , group = fips ) ,
+     #                color = 'blue' , alpha=0.5 ) +
+     #     geom_ribbon( data = p ,
+     #                  aes( ymin = .lower, ymax = .upper ) , 
+     #                  color = 'blue' , alpha=0.2 ) 
+     #   
+     # }
       return( g )
   }) 
 
