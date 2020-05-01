@@ -27,30 +27,32 @@ ui <- material_page(
     useShinyjs(),
     include_fonts = T,
     nav_bar_color = "blue" ,
-    
-    material_modal(
-      modal_id = "message",
-      button_text = "wait up to 30 sec",
-      button_icon = "open_in_browser",
-      title = "Preparing time-series" ,
-      tags$p("Modal Content") ,
-      display_button = FALSE
-    ) , 
  
   # SIDEBAR 
   material_side_nav(
-
+    
+    # material_modal(
+    #   modal_id = "message",
+    #   button_text = "wait up to 30 sec",
+    #   button_icon = "open_in_browser",
+    #   title = "Preparing time-series" ,
+    #   tags$p("Modal Content") ,
+    #   display_button = FALSE
+    # ) , 
+    
     # image_source = "side_nav.jpeg",  
     fixed = TRUE ,
    
     # Place side-nav tabs within side-nav
     material_side_nav_tabs(
       side_nav_tabs = c(
-        "County Data" = "county_data" 
+        "County Data" = "county_data"  ,
+        "Map only" = "county_data_map" ,
+        "Chart only" = "county_data_chart"
         # ,  "Data table" = "data_table"
       ),
       
-      icons = c("insert_chart") # "view_list"
+      icons = rep("insert_chart" ,3) # "view_list"
     ) ,
     
     # br(), 
@@ -167,10 +169,15 @@ ui <- material_page(
       county_data_UI( 'countyDataModule' )
     ) 
   
-   # , material_side_nav_tab_content(
-   #    side_nav_tab_id = "data_table",
-   #    county_data_UI( 'countyDataModule' )
-   #  ) 
+    # , material_side_nav_tab_content(
+    #   side_nav_tab_id = "county_data_map",
+    #   county_data_UI( 'countyDataModule' )
+    # ) ,
+    # 
+    # , material_side_nav_tab_content(
+    #   side_nav_tab_id = "county_data_chart",
+    #   county_data_UI( 'countyDataModule' )
+    # ) 
 
 )
 
