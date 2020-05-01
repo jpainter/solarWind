@@ -48,7 +48,7 @@ ui <- material_page(
     # Place side-nav tabs within side-nav
     material_side_nav_tabs(
       side_nav_tabs = c(
-        "County Data" = "county_data"  ,
+        "Chart and Map" = "county_data"  ,
         "Map only" = "county_map" ,
         "Chart only" = "county_chart"
         # ,  "Data table" = "data_table"
@@ -220,7 +220,6 @@ server <- function( input, output, session ) {
              print('loaded')
              lastDate = max( usa$date , na.rm = TRUE ) 
              print( 'lastDate') ; print( lastDate )
-             output$lastDate = renderText( paste( "Most recent data:" , as.character(lastDate) ) )
              
            } else { 
              
@@ -307,6 +306,10 @@ server <- function( input, output, session ) {
             print( 'most recent date after update' ) ;  
             print( max( data$date ))
             # glimpse( data )
+            
+            lastDate =  max( usa$date , na.rm = TRUE ) 
+            output$lastDate = renderText( paste( "Most recent data:" , as.character(lastDate) ) )
+            
                   
             return( data )
         
@@ -787,6 +790,7 @@ server <- function( input, output, session ) {
    callModule( county_data , "countyDataModule" ,
                data  = reactive( selectedCountyData() ) ,
                model  = reactive( modelData() ) ,
+               model_type = reactive( input$model ) ,
                forecastData = reactive( forecastData()$forecast ) ,
                # precastData = reactive( forecastData()$precast ) ,
                input_variables = reactive( input$variable ) ,
