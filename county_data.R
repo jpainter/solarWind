@@ -327,7 +327,7 @@ county_data <- function( input, output, session, data , model ,
         geom_line( data = f , aes(x = date, y = value , group = fips ) ,
                    color = 'brown' , alpha=0.5 ) +
         geom_ribbon( data = f ,
-                     aes( ymin = .lower, ymax = .upper ) , 
+                     aes( ymin = .lower, ymax = .upper , group = fips) , 
                      color = 'brown' , alpha=0.2 ) +
         scale_x_date( limits = c( start_date() , end_date ) ) 
                       

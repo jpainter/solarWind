@@ -17,6 +17,8 @@ suppressWarnings(
 
 # load modules ####
 source( 'county_data.R' )
+source( 'county_chart.R' )
+source( 'county_map.R' )
 source( 'dataManagementFunctions.R' )
 
 # Define UI #####
@@ -47,8 +49,8 @@ ui <- material_page(
     material_side_nav_tabs(
       side_nav_tabs = c(
         "County Data" = "county_data"  ,
-        "Map only" = "county_data_map" ,
-        "Chart only" = "county_data_chart"
+        "Map only" = "county_map" ,
+        "Chart only" = "county_chart"
         # ,  "Data table" = "data_table"
       ),
       
@@ -169,15 +171,15 @@ ui <- material_page(
       county_data_UI( 'countyDataModule' )
     ) 
   
-    # , material_side_nav_tab_content(
-    #   side_nav_tab_id = "county_data_map",
-    #   county_data_UI( 'countyDataModule' )
-    # ) ,
-    # 
-    # , material_side_nav_tab_content(
-    #   side_nav_tab_id = "county_data_chart",
-    #   county_data_UI( 'countyDataModule' )
-    # ) 
+    , material_side_nav_tab_content(
+      side_nav_tab_id = "county_map",
+      county_map_UI( 'countyMapModule' )
+    ) 
+
+    , material_side_nav_tab_content(
+      side_nav_tab_id = "county_chart",
+      county_chart_UI( 'countyChartModule' )
+    )
 
 )
 
@@ -215,7 +217,9 @@ server <- function( input, output, session ) {
              
              print( 'loading usa data' )
              usa = readRDS( 'usaFacts.rds' )
+             print('loaded')
              lastDate = max( usa$date , na.rm = TRUE ) 
+             print( 'lastDate') ; print( lastDate )
              output$lastDate = renderText( paste( "Most recent data:" , as.character(lastDate) ) )
              
            } else { 
@@ -231,7 +235,7 @@ server <- function( input, output, session ) {
              
               print( 'updating usa data')
              
-              if ( !file.exists( 'api.txt' )){ 
+              if ( !file.exists( 'api.txt' ) ){ 
                 
                 output$lastDate = renderText( "API key needed to access data. Looking for key in file, 'api.txt'" )
  
@@ -263,7 +267,7 @@ server <- function( input, output, session ) {
                        d = get( url ) 
                        if ( !is.null(d) ) d = d %>% mutate( date = ymd( .x ) ) 
                        incProgress( 1 / length( days ) )
-                       d
+                       d %>% filter( published %in% TRUE )
                      } )
                      }
               )
@@ -286,11 +290,14 @@ server <- function( input, output, session ) {
              # save data to file 
              saveRDS( usa , 'usaFacts.rds' )
            }
+                
+           }
 
            print( 'usa to data' )
            data = usa %>% 
+              filter( published == TRUE ) %>%
               rename( state = stateName , 
-                      county = countName , 
+                      county = countyName , 
                       cases = confirmed )  %>%
               mutate( 
                 countyFipsCode = ifelse( is.na( countyFipsCode ) , "000" , countyFipsCode) ,
@@ -298,10 +305,8 @@ server <- function( input, output, session ) {
                 ) 
             
             print( 'most recent date after update' ) ;  
-            print( max( usa.new$date )) ; print( max( usa$date )) ; print( max( data$date ))
+            print( max( data$date ))
             # glimpse( data )
-     
-           }  
                   
             return( data )
         
@@ -451,7 +456,7 @@ server <- function( input, output, session ) {
      # select Variable
      # vars = rlang::syms( input$variable ) 
      # print( 'vars'); print( input$variable ) ; 
-     glimpse( d )
+     # glimpse( d )
      print( 'pivoting longer');
      
      # Pivot longer 
@@ -459,11 +464,16 @@ server <- function( input, output, session ) {
       pivot_longer( cols = starts_with( input$variable  ) ) %>%
       dplyr::select( state, county, fips, date, cases, deaths, recovered, incidence ,
               lat, long , pop , name, value )
+    
      
-     
-     glimpse( d )
+     # glimpse( d )
      
     print( 'tsibble' )
+    # test
+    # print( duplicates( d , key = c(state, county , fips , name ) ,
+    #                          index = date)  )
+    # saveRDS( d , 'dupes.rds')
+    
     d = d %>% 
       as_tsibble( key = c(state, county , fips , name ) , 
                              index = date ) 
@@ -518,14 +528,14 @@ server <- function( input, output, session ) {
                        by = c('state' , 'county' , 'fips' , 'name') 
                        ) %>%
           mutate( value = ifelse( is.nan( value ) , NA , value ) ) 
-        
-          print( 'after top duplicates' )
-          # glimpse( duplicates( d , 
-          #       key = c( state, county, fips , name ) , 
-          #       index = date ) )
-    
+          
           # TEST
+          # print( 'after top duplicates' )
+          # glimpse( duplicates( d ,
+          #       key = c( state, county, fips , name ) ,
+          #       index = date ) )
           # saveRDS( d , 'test_data.rds')
+          
           
           d = d %>% 
           as_tsibble( key = c(state, county , fips , name ) , 
@@ -654,13 +664,13 @@ server <- function( input, output, session ) {
         
         md = model()
         
-          print( 'spline m' ) ; glimpse( md ) ; saveRDS( md, 'spline_m.rds')
+          # print( 'spline m' ) ; glimpse( md ) ; saveRDS( md, 'spline_m.rds')
           
           tssa =  map_df( md$ss , augment ) %>% 
           rename( value = .fitted )
           # mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
             
-          print( 'tssa' ) ; glimpse( tssa ) ; saveRDS( tssa, 'tssa.rds')
+          # print( 'tssa' ) ; glimpse( tssa ) ; saveRDS( tssa, 'tssa.rds')
           
           md =
             bind_cols( d %>% select( state, county , fips, date, name ) ,
@@ -671,9 +681,9 @@ server <- function( input, output, session ) {
       
       if ( ! input$model %in% c('Spline', 'STL') ){ 
           
-      md = model()  %>%
-        augment %>%  
-        mutate( value = ifelse( .fitted < 1 , .fitted , .fitted ) )
+        md = model()  %>%
+          augment %>%  
+          mutate( value = ifelse( .fitted < 1 , .fitted , .fitted ) )
       
       }
         
@@ -702,18 +712,50 @@ server <- function( input, output, session ) {
       
       model_period = '7 days'
       
-      
-      if ( input$model %in% 'NNETAR' ){
+      if ( input$forecastYN ){ 
+      if ( ! input$model %in% 'Spline' ){
         
-         print( 'forecast: input model in NNETAR' )
-       
-        if ( input$forecastYN ){ 
+         print( 'forecast: not spline' )
           
           m = model()
           
           f = m %>% forecast( h = model_period , times = 10 ) 
           
-        } else { f = NULL }
+          # glimpse( f )
+          
+        } else { 
+          
+          print( 'spline forecast')
+              m = model()
+              
+              print( 'spline model..')
+              # glimpse( m )
+              
+              xDates = seq( dateAsOF, 
+                            dateAsOF + days( 7 ), by ='day') 
+                  
+              f = map_df( 1:nrow(m) , ~{
+                    tibble( 
+                      state = m[.x,]$state , 
+                      county = m[.x,]$county , 
+                      fips = m[.x,]$fips , 
+                      date = xDates ,
+                      name = m[.x,]$name 
+                      ) %>%
+                      bind_cols(
+                        predict( m[.x,]$ss[[1]] , 
+                                 x = xDates %>% as.numeric() , 
+                                 interval = "prediction" 
+                                 ) 
+                      )
+              }) %>%
+                rename( value = y ) %>%
+                as_tsibble( index = date, 
+                            key = c( county, state, fips, name ) ) 
+    
+              
+              glimpse( f )
+        }
         
         } else { return() }
 
@@ -745,6 +787,26 @@ server <- function( input, output, session ) {
    callModule( county_data , "countyDataModule" ,
                data  = reactive( selectedCountyData() ) ,
                model  = reactive( modelData() ) ,
+               forecastData = reactive( forecastData()$forecast ) ,
+               # precastData = reactive( forecastData()$precast ) ,
+               input_variables = reactive( input$variable ) ,
+               # model_type = reactive( input$model ) ,
+               movingAverageDays = reactive( input$movingAverage )
+               )
+   
+  callModule( county_map , "countyMapModule" ,
+               data  = reactive( selectedCountyData() ) ,
+               model  = reactive( modelData() ) ,
+               forecastData = reactive( forecastData()$forecast ) ,
+               # precastData = reactive( forecastData()$precast ) ,
+               input_variables = reactive( input$variable ) ,
+               movingAverageDays = reactive( input$movingAverage )
+               )
+  
+    callModule( county_chart , "countyChartModule" ,
+               data  = reactive( selectedCountyData() ) ,
+               model  = reactive( modelData() ) ,
+               model_type = reactive( input$model ) ,
                forecastData = reactive( forecastData()$forecast ) ,
                # precastData = reactive( forecastData()$precast ) ,
                input_variables = reactive( input$variable ) ,
