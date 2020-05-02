@@ -312,7 +312,16 @@ county_data <- function( input, output, session, data , model ,
       print( 'forecastData' )
       # glimpse( forecastData() )
 
-      f = forecastData()  %>% hilo %>% unnest( `95%` )
+     if (! model_type() %in% 'Spline' ){
+        f = forecastData()  %>% hilo %>% unnest( `95%` )
+      
+        } else {
+        f = forecastData()  %>% 
+          mutate(
+            .lower = value , 
+            .upper = value
+          )
+        }
       
       # expand date range if forecast past last date in data
       if ( max( f$date ) > end_date() ){ end_date = max( f$date ) 
