@@ -326,8 +326,6 @@ county_data <- function( input, output, session, data ,
             .upper = value
           )
         }
-
-      }
       
       glimpse( f )
       
@@ -352,6 +350,7 @@ county_data <- function( input, output, session, data ,
       #   scale_color_manual(
       #     values = c( "growing" = "red", "plateau" = "blue" , "declining" = "green") ,
       #     )
+    }
     
     # if ( is_tsibble( precastData() ) ){
     #   

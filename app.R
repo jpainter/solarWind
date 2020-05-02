@@ -640,6 +640,7 @@ server <- function( input, output, session ) {
   })
   
   # Model data ####
+  print( 'model section')
   modelData = reactive({
     req( selectedCountyData() )
     
