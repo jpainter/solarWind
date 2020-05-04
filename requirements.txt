@@ -9,7 +9,6 @@ tmap
 leaflet
 mapview
 sf
-rmapshaper
 RColorBrewer
 plotly
 tidyverse
