@@ -266,10 +266,13 @@ server <- function( input, output, session ) {
                        d = get( url ) 
                        if ( !is.null(d) ) d = d %>% mutate( date = ymd( .x ) ) 
                        incProgress( 1 / length( days ) )
-                       d %>% filter( published %in% TRUE )
                      } )
                      }
               )
+                
+                # remove unpublished entries
+                print( 'remove unpuplished' )
+                usa.new = usa.new %>% filter( published %in% TRUE )
            
            if ( exists( 'usa.new' ) ) {
              
@@ -318,7 +321,7 @@ server <- function( input, output, session ) {
      states = reactive({ 
        req( allCountyData() )
        
-       # print('test')
+       print('states')
        # glimpse( allCountyData()  )
        st = allCountyData() %>% arrange( state ) %>% pull( state ) %>% unique 
   
@@ -326,7 +329,7 @@ server <- function( input, output, session ) {
        })
  
     observeEvent( states()  , {
-       # print( states() )
+       print( 'observe states' )
        update_material_dropdown( session, input_id = 'statePulldown' ,
                                  choices =  c( 'US' , states() ) ,
                                  value = 'US'
@@ -339,6 +342,7 @@ server <- function( input, output, session ) {
     })
   
   counties = reactive({ 
+    print( 'counties' )
      req( allCountyData() )
      req( input$statePulldown )
 
@@ -351,7 +355,7 @@ server <- function( input, output, session ) {
      })
    
   observeEvent( counties()  , {
-     # print( states() )
+     print( 'observe counties' )
      update_material_dropdown( session, input_id = 'countyPulldown' ,
                                choices =  c( 'ALL' , counties() ) ,
                                value = 'ALL'
@@ -360,7 +364,7 @@ server <- function( input, output, session ) {
  
   # Select county data ####  
   selectedCountyData = reactive({
-    
+      
       req( input$countyPulldown  )
       req( input$variable  )
      
