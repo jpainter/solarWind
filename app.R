@@ -263,7 +263,7 @@ server <- function( input, output, session ) {
                      future_map_dfr( days , ~{ 
                        url =  paste0( "https://data.usafacts.org/covid-nineteen?api-key=" ,
                                                 key , "&date=" , .x  )
-                       d = get( url ) 
+                       d = get( url )
                        if ( !is.null(d) ) d = d %>% mutate( date = ymd( .x ) ) 
                        incProgress( 1 / length( days ) )
                      } )
