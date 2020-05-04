@@ -9,6 +9,9 @@ libraries = readLines( con , warn=FALSE )
 close( con )
 libraries = gsub(" ", "" ,  libraries)
 
+# SciComp library
+.libPaths( c("library", "/opt/R/R-3.6.1/lib64/R/library", .libPaths() ) )
+
 # load the packages
 suppressWarnings(
   lapply( libraries , library  , character.only = TRUE)
