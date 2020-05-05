@@ -216,7 +216,11 @@ server <- function( input, output, session ) {
            if ( file.exists( 'usaFacts.rds') ){
              
              print( 'loading usa data' )
-             usa = readRDS( 'usaFacts.rds' )
+             usa = readRDS( 'usaFacts.rds' ) %>%
+               # countyName column was countName.  Fixed Arpil 24 but old values for countyName empty
+               mutate( 
+                 countyName = ifelse( is.na( countyName ) , countName, countyName )
+                       )
              print('loaded')
              lastDate = max( usa$date , na.rm = TRUE ) 
              print( 'lastDate') ; print( lastDate )
@@ -566,7 +570,7 @@ server <- function( input, output, session ) {
      }
     
     print( 'd' )
-    # glimpse( d )
+    glimpse( d )
 
      return( d )
    })

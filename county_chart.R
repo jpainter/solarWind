@@ -26,7 +26,7 @@ county_chart_UI <- function( id ) {
                                                        'Slope cutoff' ,
                                                        min_value = .01 ,
                                                        max_value = .2 ,
-                                                       initial_value = .1 ,
+                                                       initial_value = .01 ,
                                                     step_size = .01
                                                     ) ,
                                     sliderInput( ns('asOf') ,
@@ -70,22 +70,38 @@ county_chart <- function( input, output, session, data ,
     req( data() )
     
     # start date
-    if ( length( unique( data()$fips ) ) > 5 ){
+    
+    print( paste( 'nrow( data() )' ,nrow( data() ) ))
+    if ( nrow( data() )  > 150 ){
       min.num = 5
     } else {
-      min.num = 0
+      min.num = 1
     }
+    print( paste( 'min.num' , min.num ))
+    # test saveRDS( data() , 'data.rds')
     
-     d = data()%>% as_tibble() %>%
+    d = data()%>% as_tibble() %>%
       filter( cases <= min.num ) %>% 
       group_by( county, state, fips ) %>%
       summarise( date = max( date , na.rm = TRUE ) ) %>%
       ungroup() 
     
-    start_date = min( d$date )
+    print( 'start date d')
+    print( head( d ) )
+    
+    if ( nrow(d) > 0 ){
+      start_date = min( d$date ) 
+    } else {
+      start_date = Sys.Date() - days(30)
+    }
+    
+    
+    print( 'start date')
+    print( start_date )
+    
     
     return( start_date )
-    })
+  })
   
   end_date = reactive({
     req( data())

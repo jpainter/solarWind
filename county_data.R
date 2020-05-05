@@ -26,7 +26,7 @@ county_data_UI <- function( id ) {
                                                        'Slope cutoff' ,
                                                        min_value = .01 ,
                                                        max_value = .2 ,
-                                                       initial_value = .1 ,
+                                                       initial_value = .01 ,
                                                     step_size = .01
                                                     ) 
                                    ) ,
@@ -86,19 +86,35 @@ county_data <- function( input, output, session, data ,
     req( data() )
     
     # start date
-    if ( length( unique( data()$fips ) ) > 5 ){
+    
+    print( paste( 'nrow( data() )' ,nrow( data() ) ))
+    if ( nrow( data() )  > 150 ){
       min.num = 5
     } else {
-      min.num = 0
+      min.num = 1
     }
+    print( paste( 'min.num' , min.num ))
+    # test saveRDS( data() , 'data.rds')
     
      d = data()%>% as_tibble() %>%
       filter( cases <= min.num ) %>% 
       group_by( county, state, fips ) %>%
       summarise( date = max( date , na.rm = TRUE ) ) %>%
       ungroup() 
+     
+     print( 'start date d')
+     print( head( d ) )
     
-    start_date = min( d$date )
+    if ( nrow(d) > 0 ){
+      start_date = min( d$date ) 
+    } else {
+        start_date = Sys.Date() - days(30)
+      }
+     
+    
+    print( 'start date')
+    print( start_date )
+    
     
     return( start_date )
     })
@@ -398,10 +414,9 @@ county_data <- function( input, output, session, data ,
     d.last = d %>% as_tibble() %>%
       group_by( state, county, fips , name ) %>% 
       arrange( state, county, fips , name , desc( date ) ) %>%
-      mutate( lead_status = lead( status , 1 ) ,
-              status = ifelse( is.na( lead_status) , status , lead_status )) %>% 
-      # filter( row_number() == 1 ) %>%
-      filter( date %in% input$asOf ) %>%
+      mutate( status = lead( status , 1 ) ) %>% 
+      filter( date <= input$asOf ) %>%
+      filter( row_number() == 1 ) %>%
       filter( !is.na( lat ) , !is.na( long ) ) 
   
     # convert to sf
