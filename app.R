@@ -251,7 +251,7 @@ server <- function( input, output, session ) {
               
               key = read_lines( 'api.txt' )
               
-              days = seq( lastDate + days(1) , ymd( Sys.Date() ), by="days" ) 
+              days = seq( lastDate - days(7) , ymd( Sys.Date() ), by="days" ) 
               
               print( 'getting data for this number of days') ; print(length(days))
               
@@ -298,7 +298,9 @@ server <- function( input, output, session ) {
              
              if ( exists( "usa" ) ){
                print( 'binding old and new' )
-               usa = bind_rows( usa , usa.new ) 
+               usa = bind_rows( 
+                 usa %>% filter( date < lastDate - days(7) ) , # remove last 7 days of data
+                 usa.new ) # Add updated values
                
              } else {
                usa = usa.new
