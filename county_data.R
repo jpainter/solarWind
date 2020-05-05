@@ -398,7 +398,8 @@ county_data <- function( input, output, session, data ,
     d.last = d %>% as_tibble() %>%
       group_by( state, county, fips , name ) %>% 
       arrange( state, county, fips , name , desc( date ) ) %>%
-      mutate( status = lead( status , 1 ) ) %>%
+      mutate( lead_status = lead( status , 1 ) ,
+              status = ifelse( is.na( lead_status) , status , lead_status )) %>% 
       # filter( row_number() == 1 ) %>%
       filter( date %in% input$asOf ) %>%
       filter( !is.na( lat ) , !is.na( long ) ) 
@@ -470,10 +471,11 @@ county_data <- function( input, output, session, data ,
               scale = 3 , 
               popup.vars =  # TRUE ,
               c(
-                " " = "name" , " " = "value" ,
+                "Measure" = "name" , "Value" = "value" ,
                 "Cumulative Cases:" = "cases",
                 "Cumulative Deaths:" = "deaths" ,
-                "Population" = "pop" , "Date:" = "date") ,
+                "Population" = "pop" , "Date:" = "date", 
+                "State" = "state") ,
               col = 'status' , alpha = .5  ,
               palette =  pal ,
               legend.hist = TRUE 

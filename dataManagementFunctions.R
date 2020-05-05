@@ -3,7 +3,7 @@
 # d <- read_excel( "CDC_HotSpot_02APR20.xlsx" , sheet = "Case Count" )
 
 # glimpse(d)
-get = function( url , .print = TRUE , ...){
+get = function( url , .print = TRUE , .timeout = 30 , ...){
   
     # https://stackoverflow.com/questions/57198836
     httr::set_config(httr::config(ssl_verifypeer=0L))
@@ -11,7 +11,7 @@ get = function( url , .print = TRUE , ...){
     if ( .print ) cat( paste( "downloading from" , url , "...") )
     flush.console()
     
-    from_url =  GET( url ) 
+    from_url =  GET( url , timeout( .timeout )) 
     
     if ( from_url$status_code != 200 ) return( FALSE )
     

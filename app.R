@@ -260,19 +260,32 @@ server <- function( input, output, session ) {
                    value = 0 ,
                    {
                      usa.new = 
-                     future_map_dfr( days , ~{ 
+                     future_map( days , ~{ 
                        url =  paste0( "https://data.usafacts.org/covid-nineteen?api-key=" ,
                                                 key , "&date=" , .x  )
-                       d = get( url )
-                       if ( !is.null(d) ) d = d %>% mutate( date = ymd( .x ) ) 
+                       d = get( url , .timeout = 60 )
+                       print( class( d ) )
+                       if ( is.data.frame(d) ){ 
+                         d = d %>% mutate( date = ymd( .x ) ) %>%
+                           filter( published %in% TRUE )
+                       } else {
+                         d = data_frame()
+                       }
+                       print( paste( 'nrow d' , nrow( d )))
                        incProgress( 1 / length( days ) )
+                       d
                      } )
                      }
               )
                 
                 # remove unpublished entries
                 print( 'remove unpuplished' )
-                usa.new = usa.new %>% filter( published %in% TRUE )
+                # saveRDS( usa.new , 'usanew.rds')
+                usa.new = usa.new %>% map_df(., bind_rows ) 
+                # %>% 
+                #   filter( published %in% TRUE )
+                glimpse( usa.new )
+                print( paste( 'nrow usa.new' , nrow( usa.new )))
            
            if ( exists( 'usa.new' ) ) {
              
