@@ -62,7 +62,9 @@ ui <- material_page(
     material_row(       style="padding-left: 10px;" ,
                         
       material_column( "Location" , width = 12 , 
-                        
+      
+      material_checkbox("updateData" , "Update data", initial_value = FALSE ) ,
+                         
       material_dropdown( "statePulldown" , "State", 
                          choices = NULL , multiple = FALSE ) ,
       
@@ -118,7 +120,7 @@ ui <- material_page(
     material_row(       style="padding-left: 10px;" ,
                         
       material_dropdown( "model" , "Model type", 
-                         choices = c( "ARIMA" ,"ETS" , # "STL" , 
+                         choices = c( "Fourier" , "ARIMA" ,"ETS" , # "STL" , 
                                       # "TSLM" , 
                                       "NNETAR" , "Spline") ,
                          selected = "Spline"
@@ -234,7 +236,7 @@ server <- function( input, output, session ) {
              }
            
            # 2. Update missing data 
-           if ( ymd( Sys.Date() ) != lastDate ){
+           if ( ymd( Sys.Date() ) != lastDate & input$updateData ){
              
               print( 'updating usa data')
              
@@ -605,6 +607,15 @@ server <- function( input, output, session ) {
     if ( input$modelYN  ){
       
       # ETS
+      if ( input$model %in% 'Fourier' ){ 
+        m = d %>%
+          fabletools::model(. , ARIMA( value  ~
+                                         fourier( K = 1 ) +
+                              pdq(0:1,0:1,0:1) + PDQ(0,0,0)
+                            )  )
+      }
+      
+      # ETS
       if ( input$model %in% 'ETS' ){ 
         m = d %>%
           fabletools::model(. ,  ets = ETS( value ) )  
@@ -619,7 +630,10 @@ server <- function( input, output, session ) {
       # ARIMA
       if ( input$model %in% 'ARIMA' ){ 
         m = d %>%
-          fabletools::model( . ,  arima = ARIMA( value ) )  
+          fabletools::model( . ,  arima = 
+                               ARIMA( value ~ pdq(0:2,0:1,0:2) + 
+                                        PDQ(0:1,0:1,0:1) ) 
+                             )  
       }
       
       # NNETAR

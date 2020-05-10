@@ -267,7 +267,7 @@ county_data <- function( input, output, session, data ,
     # bar chart vs line chart
     print( 'distinct fips') ; print( unique( d$fips ) ) 
     if ( length( unique( d$fips ) ) > 1 ){
-      g = g + geom_line( alpha = .7 , size = .7 ) 
+      g = g + geom_line( alpha = .5 , size = .5 ) 
       
     } else {
       g = g + geom_col() 
@@ -305,7 +305,7 @@ county_data <- function( input, output, session, data ,
         geom_segment( data = d , aes(x = date, xend = lead_x , 
                                      y = fit, yend = lead_y , color = status ,
                                      group = fips ) ,
-                      alpha = .75 , size = .75
+                      alpha = .5 , size = .5
         ) +
         # scale_color_brewer( palette =  "RdYlGn",  type = "div" , drop = FALSE )
         
@@ -441,7 +441,11 @@ county_data <- function( input, output, session, data ,
         geom_col() +
         scale_fill_manual( values = brewer.pal(5, "RdYlGn" )  ,
                             drop = FALSE ) +
-       facet_wrap( ~ name , nrow = 1 )
+       facet_wrap( ~ name , nrow = 1 ) +
+       labs( y = 'Freq') +
+       theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
      
      return( g )
      
