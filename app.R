@@ -92,7 +92,14 @@ ui <- material_page(
                                       "cumulativeDeaths" , 
                                       "cumulativeMortality" ,
                                       "dailyDeaths",
-                                      "dailyMortality") ,
+                                      "dailyMortality",
+                                      "EstimatedCases" ,
+                                      "estimatedCaseIncidence", 
+                                      'estimatedCumulativeIncidence' ,
+                                      'estimateActiveCases' ,
+                                      'estimatedActiveCaseIncidence' ,
+                                      'tenDayCaseFatalityRate' ,
+                                      'cumulativeCaseFatalityRate') ,
                          selected = c( "dailyCases","dailyCaseIncidence" ) ,
                          multiple = TRUE 
                          )
@@ -464,6 +471,8 @@ server <- function( input, output, session ) {
          dailyCaseIncidence = dailyCases * 1e5 / pop ,
          incidence = dailyCaseIncidence , # used to classify high plateau, need in every row, not of pivot
          dailyActiveCases = cumulativeCases - recoveredCases ,
+         tenDayActiveCases = slider::slide_dbl( dailyCases , sum, na.rm = TRUE ,
+                                                .before = 9 ) ,
          dailyActiveIncidence = dailyActiveCases * 1e5 / pop
                
           ) 
@@ -474,7 +483,20 @@ server <- function( input, output, session ) {
        mutate( cumulativeDeaths = deaths ,
                cumulativeMortality = deaths * 1e5 / pop ,
                dailyDeaths = difference( cumulativeDeaths ) ,
-               dailyMortality = dailyDeaths * 1e5 / pop 
+               dailyMortality = dailyDeaths * 1e5 / pop ,
+               EstimatedCases = dailyDeaths * 100 ,
+               estimatedActiveCases = slider::slide_dbl( EstimatedCases , 
+                                                                 sum, na.rm = TRUE ,
+                                                                 .before = 9 ) ,
+               estimatedCaseIncidence = EstimatedCases * 1e5 / pop ,
+               estimatedActiveCaseIncidence = slider::slide_dbl( estimatedCaseIncidence , 
+                                                         sum, na.rm = TRUE ,
+                                                         .before = 9 ) ,
+               estimatedCumulativeIncidence = cumulativeDeaths * 100 * 1e5 / pop ,
+               tenDayCaseFatalityRate = 100*slider::slide_dbl( dailyDeaths , 
+                                                        sum, na.rm = TRUE ,
+                                                        .before = 9 ) /  tenDayActiveCases ,
+               cumulativeCaseFatalityRate = 100*cumulativeDeaths /  cumulativeCases 
           )
      }
      
