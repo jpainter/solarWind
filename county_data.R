@@ -147,7 +147,9 @@ county_data <- function( input, output, session, data ,
   
   dataTS = reactive({
     req( data() )
-    print( 'dataTS') ; print( 'testing model') ; print( is.na( model())) ; print( model() ) ; 
+    print( 'dataTS') ; 
+    # print( 'testing model') ; 
+    # print( is.na( model()) ) ; print( model() ) ; 
     
     d = data() %>% mutate( status = value )
     m = model() 

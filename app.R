@@ -3,6 +3,10 @@
 # the 'Run App' button above.
 
 # Libraries ####
+
+# SciComp library
+.libPaths( c("library", "/opt/R/R-3.6.1/lib64/R/library", .libPaths() ) )
+
 # Function to test if package is installed
 con = file( 'requirements.txt' ) 
 libraries = readLines( con , warn=FALSE )
@@ -123,9 +127,8 @@ ui <- material_page(
       material_checkbox( "modelYN" , "Add Model", 
                          initial_value = FALSE
                          )
-      ) ,
-    material_row(       style="padding-left: 10px;" ,
-                        
+      ,
+
       material_dropdown( "model" , "Model type", 
                          choices = c( "Fourier" , "ARIMA" ,"ETS" , # "STL" , 
                                       # "TSLM" , 
@@ -680,19 +683,50 @@ server <- function( input, output, session ) {
           group_by( state, county , fips , name ) %>%
           nest( data = c( date, value ) ) 
         
-        library( furrr )
-        library( tictoc )
-        tic()
-        tss = t %>% mutate( ss = future_map( data , 
-                                      ~smooth.spline( x = data[[1]]$date, 
-                                                      y = data[[1]]$value , 
-                                                      spar = .5 ) 
-                                     # ,  .progress = TRUE 
-                                     )
-                            # ~smooth.spline( x = .x$date , y = .x$value , spar = .5 ) )
-                            # ~smooth.spline( x = date , y = value , spar = .5 ) )
+        # Attempt to spead up process with parrallel computation 
+        # currently not working as it should...
+        # print( 'spline_future_map' )
+        # library( furrr )
+        # library( tictoc )
+        # 
+        # numCores = availableCores() - 1 
+        # plan( multisession, workers = numCores )
+        # print( 'furrr parallel')
+        # 
+        # tic()
+        # tss = t %>% mutate( ss = future_map( data ,
+        #                               ~smooth.spline( x = data[[1]]$date,
+        #                                               y = data[[1]]$value ,
+        #                                               spar = .5 )
+        #                              # ,  .progress = TRUE
+        #                              , workers = numCores
+        # 
+        #                              )
+        #                     # ~smooth.spline( x = .x$date , y = .x$value , spar = .5 ) )
+        #                     # ~smooth.spline( x = date , y = value , spar = .5 ) )
+        # )
+        # toc()
+        # 
+        
+        # plan( sequential )
+        # print( 'furrr sequential')
+        # tic()
+        # tss = t %>% mutate( ss = future_map( data ,
+        #                                      ~smooth.spline( x = data[[1]]$date,
+        #                                                      y = data[[1]]$value ,
+        #                                                      spar = .5 )
+        # )
+        # )
+        # toc()
+        
+        tss = t %>% mutate( ss = map( data ,
+                                             ~smooth.spline( x = data[[1]]$date,
+                                                             y = data[[1]]$value ,
+                                                             spar = .5 )
         )
-        toc()
+        )
+                                             
+                                             
         
         m = tss
       }
@@ -705,7 +739,7 @@ server <- function( input, output, session ) {
   })
   
   # Model data ####
-  print( 'model section')
+  
   modelData = reactive({
     req( selectedCountyData() )
     
@@ -735,8 +769,22 @@ server <- function( input, output, session ) {
         
           # print( 'spline m' ) ; glimpse( md ) ; saveRDS( md, 'spline_m.rds')
           
-          tssa =  map_df( md$ss , augment ) %>% 
-          rename( value = .fitted )
+          # print( 'spline model data future_map_df')
+          # 
+          # tic()
+          # tssa =  future_map( md$ss , augment 
+          #                        , workers = numCores  
+          #                        ) %>% 
+          #   reduce( ., bind_rows ) %>%
+          # rename( value = .fitted )
+          # toc()
+          
+          tssa =  map( md$ss , augment 
+                              , workers = numCores  
+          ) %>% 
+            reduce( ., bind_rows ) %>%
+            rename( value = .fitted )
+          
           # mutate( value = ifelse( .fitted < 1 , 0 , .fitted ) )
             
           # print( 'tssa' ) ; glimpse( tssa ) ; saveRDS( tssa, 'tssa.rds')
