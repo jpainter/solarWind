@@ -680,13 +680,19 @@ server <- function( input, output, session ) {
           group_by( state, county , fips , name ) %>%
           nest( data = c( date, value ) ) 
         
-        tss = t %>% mutate( ss = map( data , 
+        library( furrr )
+        library( tictoc )
+        tic()
+        tss = t %>% mutate( ss = future_map( data , 
                                       ~smooth.spline( x = data[[1]]$date, 
                                                       y = data[[1]]$value , 
-                                                      spar = .5 ) )
+                                                      spar = .5 ) 
+                                     # ,  .progress = TRUE 
+                                     )
                             # ~smooth.spline( x = .x$date , y = .x$value , spar = .5 ) )
                             # ~smooth.spline( x = date , y = value , spar = .5 ) )
         )
+        toc()
         
         m = tss
       }
