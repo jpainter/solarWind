@@ -267,7 +267,7 @@ county_data <- function( input, output, session, data ,
       )
     
     # bar chart vs line chart
-    print( 'distinct fips') ; print( unique( d$fips ) ) 
+    # print( 'distinct fips') ; print( unique( d$fips ) ) 
     if ( length( unique( d$fips ) ) > 1 ){
       g = g + geom_line( alpha = .5 , size = .5 ) 
       
@@ -275,7 +275,7 @@ county_data <- function( input, output, session, data ,
       g = g + geom_col() 
     }
     
-    print( 'vertical line') ; print( input$asOf ) 
+    # print( 'vertical line') ; print( input$asOf ) 
     
     # facets 
     g = g +
@@ -286,8 +286,8 @@ county_data <- function( input, output, session, data ,
       scale_x_date( limits = c( start_date() , end_date() ) , 
                     date_labels = "%m/%d" ) +
       
-      geom_vline( xintercept = as.numeric( ymd( input$asOf ) ) , 
-                  size = .3, alpha = .5 , color = 'blue' ) +
+      # geom_vline( xintercept = as.numeric( ymd( input$asOf ) ) , 
+      #             size = .3, alpha = .5 , color = 'blue' ) +
       
       theme_minimal() +
       
@@ -333,18 +333,19 @@ county_data <- function( input, output, session, data ,
 
       # glimpse( forecastData() )
       
-      if (! model_type() %in% 'Spline' ){
-        f = forecastData()  %>% hilo %>% unnest( `95%` )
-        
-      } else {
-
-        f = forecastData()  %>% 
-          mutate(
-            .lower = value , 
-            .upper = value
-          )
-        }
+      # if (! model_type() %in% 'Spline' ){
+      #   f = forecastData()  %>% hilo %>% unnest( `95%` )
+      #   
+      # } else {
+      # 
+      #   f = forecastData()  %>% 
+      #     mutate(
+      #       .lower = value , 
+      #       .upper = value
+      #     )
+      #   }
       
+      f = forecastData()
       glimpse( f )
       
       # expand date range if forecast past last date in data
@@ -396,7 +397,7 @@ county_data <- function( input, output, session, data ,
   tmapData = reactive({ 
     req( dataTS() )
     
-    print( 'tmapData' ) ; glimpse( dataTS() )
+    print( 'tmapData' ) ; # glimpse( dataTS() )
     
     if ( nrow( dataTS() ) == 0 ) return( NULL )
       
@@ -425,7 +426,7 @@ county_data <- function( input, output, session, data ,
     dsf = st_as_sf( d.last , coords = c( "long", "lat" ) ) 
 
     print( 'd.last') ;
-    glimpse( d.last )
+    # glimpse( d.last )
         
     return( dsf )
     }) 
@@ -462,7 +463,12 @@ county_data <- function( input, output, session, data ,
   output$chartTS = renderPlotly({ 
     req( ggplotTS() ) 
     # ggplotTS() 
-    ggplotly( ggplotTS() )  %>% 
+    ggplotly( 
+                # Add vertical line base on 'Status as of (date)' slider under map
+                ggplotTS() +
+                geom_vline( xintercept = as.numeric( ymd( input$asOf ) ) , 
+                            size = .3, alpha = .5 , color = 'blue' ) 
+              )  %>% 
       layout(
        # title = "New plot title",
        legend = list(orientation = "h",

@@ -246,7 +246,7 @@ server <- function( input, output, session ) {
              }
            
            # 2. Update missing data 
-           if ( ymd( Sys.Date() ) != lastDate & input$updateData ){
+           if ( ymd( Sys.Date() ) != lastDate & input$updateData | !file.exists( 'usaFacts.rds')){
              
               print( 'updating usa data')
              
@@ -263,7 +263,7 @@ server <- function( input, output, session ) {
               
               key = read_lines( 'api.txt' )
               
-              days = seq( lastDate - days(7) , ymd( Sys.Date() ), by="days" ) 
+              days = seq( lastDate - days(14) , ymd( Sys.Date() ), by="days" ) 
               
               print( 'getting data for this number of days') ; print(length(days))
               
