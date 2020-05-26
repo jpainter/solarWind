@@ -97,11 +97,14 @@ ui <- material_page(
                                       "cumulativeMortality" ,
                                       "dailyDeaths",
                                       "dailyMortality",
+                                      "recoveredCases" , 
                                       "EstimatedCases" ,
                                       "estimatedCaseIncidence", 
                                       'estimatedCumulativeIncidence' ,
                                       'estimateActiveCases' ,
                                       'estimatedActiveCaseIncidence' ,
+                                      'tenDayActiveCases',
+                                      'tenDayActiveIncidence' ,
                                       'tenDayCaseFatalityRate' ,
                                       'cumulativeCaseFatalityRate') ,
                          selected = c( "dailyCases","dailyCaseIncidence" ) ,
@@ -233,7 +236,8 @@ server <- function( input, output, session ) {
                mutate( 
                  countyName = ifelse( is.na( countyName ) , countName, countyName )
                        )
-             print('loaded')
+             
+             print('loaded usaFacts') ; glimpse( usa )
              lastDate = max( usa$date , na.rm = TRUE ) 
              print( 'lastDate') ; print( lastDate )
              
@@ -263,8 +267,12 @@ server <- function( input, output, session ) {
               
               key = read_lines( 'api.txt' )
               
-              days = seq( lastDate - days(14) , ymd( Sys.Date() ), by="days" ) 
+              # to cover any holes...go back 14 days from most recent data
+              first_fetch_day = lastDate - days(14)
               
+              days = seq( first_fetch_day , ymd( Sys.Date() ), by="days" ) 
+              
+              print( 'getting data since' ) ; print( first_fetch_day )
               print( 'getting data for this number of days') ; print(length(days))
               
               # material_modal( 'downloding' , 'ok' , 'Fetching Data from USAFacts' )
@@ -300,19 +308,21 @@ server <- function( input, output, session ) {
                 usa.new = usa.new %>% map_df(., bind_rows ) 
                 # %>% 
                 #   filter( published %in% TRUE )
-                glimpse( usa.new )
-                print( paste( 'nrow usa.new' , nrow( usa.new )))
+
+                print( 'usa.new' ) ; glimpse( usa.new )
            
            if ( exists( 'usa.new' ) ) {
              
              print( 'creating updated usa data file' )
-             glimpse( usa.new ) 
+             # glimpse( usa.new ) 
              
              if ( exists( "usa" ) ){
                print( 'binding old and new' )
                usa = bind_rows( 
-                 usa %>% filter( date < lastDate - days(7) ) , # remove last 7 days of data
+                 usa %>% filter( date < first_fetch_day ) , # remove last 7 days of data
                  usa.new ) # Add updated values
+               
+               glimpse( usa )
                
              } else {
                usa = usa.new
@@ -467,16 +477,17 @@ server <- function( input, output, session ) {
        group_by( state, county, fips ) %>%
        arrange( state, county, fips , date ) %>%
        mutate( 
-         recoveredCases = cumsum( ifelse( is.na( recovered ) , 0 , recovered ) ) , 
+         # recoveredCases = cumsum( ifelse( is.na( recovered ) , 0 , recovered ) ) ,
+         recoveredCases = ifelse( is.na( recovered ) , 0 , recovered )  ,
          cumulativeCases = cases ,
          cumulativeCaseIncidence = cases * 1e5 / pop ,
          dailyCases = difference( cumulativeCases ) ,
          dailyCaseIncidence = dailyCases * 1e5 / pop ,
          incidence = dailyCaseIncidence , # used to classify high plateau, need in every row, not of pivot
-         dailyActiveCases = cumulativeCases - recoveredCases ,
+         # dailyActiveCases = cumulativeCases - recoveredCases ,
          tenDayActiveCases = slider::slide_dbl( dailyCases , sum, na.rm = TRUE ,
                                                 .before = 9 ) ,
-         dailyActiveIncidence = dailyActiveCases * 1e5 / pop
+         tenDayActiveIncidence = tenDayActiveCases * 1e5 / pop
                
           ) 
      
