@@ -5,10 +5,10 @@ shiny
 shinyjs
 shinymaterial
 htmlwidgets
-tmap
 leaflet
 mapview
 sf
+tmap
 rmapshaper
 RColorBrewer
 plotly

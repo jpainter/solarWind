@@ -91,6 +91,7 @@ ui <- material_page(
                                       "cumulativeCaseIncidence" ,
                                       "dailyCases",
                                       "dailyCaseIncidence" ,
+                                      # "weeklyPercentCaseChange" ,
                                       "dailyActiveCases" , 
                                       "dailyActiveIncidence" ,
                                       "cumulativeDeaths" , 
@@ -120,8 +121,11 @@ ui <- material_page(
                         
         material_slider( "movingAverage" , "Moving average (days)", 
                          min_value = 1 , max_value = 14 ,
-                       initial_value = 3
-                         )
+                       initial_value = 7
+                         ) ,
+        material_checkbox( "weeklyPercentChange" , 
+                           "Change relative to 7 days prior" ,
+                           initial_value = FALSE )
       ) ) ,
     # br() , 
     # Models
@@ -487,7 +491,9 @@ server <- function( input, output, session ) {
          # dailyActiveCases = cumulativeCases - recoveredCases ,
          tenDayActiveCases = slider::slide_dbl( dailyCases , sum, na.rm = TRUE ,
                                                 .before = 9 ) ,
-         tenDayActiveIncidence = tenDayActiveCases * 1e5 / pop
+         tenDayActiveIncidence = tenDayActiveCases * 1e5 / pop ,
+         
+         weeklyPercentCaseChange = 100 * difference( dailyCases , lag = 7 ) / dailyCases
                
           ) 
      
@@ -545,7 +551,7 @@ server <- function( input, output, session ) {
     
     # Moving average
     print( 'moving average' )
-    material_spinner_show(session, "moving_average")
+    material_spinner_show( session, "moving_average")
     # open_material_modal( session , 'message')
     
     d = d %>%
@@ -557,6 +563,18 @@ server <- function( input, output, session ) {
                ) 
     material_spinner_hide(session, "moving_average")
     # close_material_modal( session , 'message')
+    
+    # Weekly Percent Change
+    if ( input$weeklyPercentChange ){
+      
+      d =  d = d %>%
+       fill_gaps( value = 0 ) %>%
+       group_by( state, county , fips, name )  %>%
+       mutate_at( vars( value ) ,
+         ~ log( value + 1 )  -
+           log( lag( value , 7 ) + 1 )
+               ) 
+    }
     
      # Scale
      # print( 'log(e)' )
@@ -601,10 +619,10 @@ server <- function( input, output, session ) {
           # saveRDS( d , 'test_data.rds')
           
           
-          d = d %>% 
-          as_tsibble( key = c(state, county , fips , name ) , 
-                             index = date ) %>%
-            fill_gaps()
+          # d = d %>%
+          # as_tsibble( key = c(state, county , fips , name ) ,
+          #                    index = date ) %>%
+          #   fill_gaps()
           
           print( 'is tsibble ') ; print( is_tsibble( d ) )
      }
@@ -922,7 +940,7 @@ server <- function( input, output, session ) {
                # model_type = reactive( input$model ) ,
                movingAverageDays = reactive( input$movingAverage )
                )
-   
+
   callModule( county_map , "countyMapModule" ,
                data  = reactive( selectedCountyData() ) ,
                model  = reactive( modelData() ) ,
@@ -931,7 +949,7 @@ server <- function( input, output, session ) {
                input_variables = reactive( input$variable ) ,
                movingAverageDays = reactive( input$movingAverage )
                )
-  
+
     callModule( county_chart , "countyChartModule" ,
                data  = reactive( selectedCountyData() ) ,
                model  = reactive( modelData() ) ,
@@ -941,7 +959,7 @@ server <- function( input, output, session ) {
                input_variables = reactive( input$variable ) ,
                movingAverageDays = reactive( input$movingAverage )
                )
-   
+
 }
 
 
