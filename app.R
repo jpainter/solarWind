@@ -137,7 +137,7 @@ ui <- material_page(
       ,
 
       material_dropdown( "model" , "Model type", 
-                         choices = c( "Fourier" , "ARIMA" ,"ETS" , # "STL" , 
+                         choices = c( "Fourier" , "ARIMA" ,"ETS" , "STL" , 
                                       # "TSLM" , 
                                       "NNETAR" , "Spline") ,
                          selected = "Spline"
