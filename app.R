@@ -691,8 +691,10 @@ server <- function( input, output, session ) {
         m = d %>%
           fill_gaps() %>%
           fabletools::model( . ,  arima = 
-                               ARIMA( value ~ 0 + pdq(0:2,0:1,0:2) + 
-                                        PDQ(0:1,0:1,0:1) ) 
+                               ARIMA( value
+                                      # ~ 0 + pdq(0:2,0:1,0:2) +
+                                      #   PDQ(0:1,0:1,0:1)
+                                      ) 
                              )  
         
         # print( 'data for Arima Model' ) ; glimpse( d )
