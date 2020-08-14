@@ -299,7 +299,7 @@ county_data <- function( input, output, session, data ,
     if ( is_tsibble( model() ) ){
 
       print( 'chart m' );
-      # glimpse( m )
+      glimpse( d )
 
       g = g +
         # fitted line
@@ -346,7 +346,7 @@ county_data <- function( input, output, session, data ,
       #   }
 
       f = forecastData()
-      glimpse( f )
+      # glimpse( f )
 
       # expand date range if forecast past last date in data
       if ( max( f$date ) > end_date() ){ end_date = max( f$date )
@@ -429,13 +429,13 @@ county_data <- function( input, output, session, data ,
     
 
     print( 'd.last') ;
-    glimpse( d.last )
+    # glimpse( d.last )
     
     # convert to sf
     dsf = st_as_sf( d.last , coords = c( "long", "lat" ) )
 
     print( 'dsf') ;
-    glimpse( dsf )
+    # glimpse( dsf )
 
     return( dsf )
     })

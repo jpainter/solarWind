@@ -663,6 +663,7 @@ server <- function( input, output, session ) {
       # ETS
       if ( input$model %in% 'Fourier' ){ 
         m = d %>%
+          fill_gaps() %>%
           fabletools::model(. , ARIMA( value  ~
                                          fourier( K = 1 ) +
                               pdq(0:1,0:1,0:1) + PDQ(0,0,0)
@@ -672,27 +673,35 @@ server <- function( input, output, session ) {
       # ETS
       if ( input$model %in% 'ETS' ){ 
         m = d %>%
+          fill_gaps() %>%
           fabletools::model(. ,  ets = ETS( value ) )  
       }
       
       # STL
       if ( input$model %in% 'STL' ){ 
         m = d %>%
+          fill_gaps() %>%
           fabletools::model(. ,  stl = STL( value  ~ trend( window = 7 )) )  
       }
       
       # ARIMA
       if ( input$model %in% 'ARIMA' ){ 
         m = d %>%
+          fill_gaps() %>%
           fabletools::model( . ,  arima = 
-                               ARIMA( value ~ pdq(0:2,0:1,0:2) + 
+                               ARIMA( value ~ 0 + pdq(0:2,0:1,0:2) + 
                                         PDQ(0:1,0:1,0:1) ) 
                              )  
+        
+        # print( 'data for Arima Model' ) ; glimpse( d )
+        # saveRDS( d, 'arima_model_data_d.rds')
+        # print( 'Arima Model' ) ; glimpse( m)
       }
       
       # NNETAR
       if ( input$model %in% 'NNETAR' ){ 
         m = d %>%
+          fill_gaps() %>%
           fabletools::model(. , nnetar = NNETAR( box_cox( value, .1 ) ,  period = '7 days'  ) ) 
       }
       
@@ -760,6 +769,7 @@ server <- function( input, output, session ) {
         m = tss
       }
       
+      print( 'Model()' ) ; glimpse( m)
       return( m )
       
     } else { return( NA ) }
@@ -831,13 +841,16 @@ server <- function( input, output, session ) {
           augment %>%  
           mutate( value = ifelse( .fitted < 1 , .fitted , .fitted ) )
       
+        print( input$model )
+        glimpse( md )
       }
         
-      # print( input$model )
-      # glimpse( md )
+      
       
 
-    } else { md = NA }
+      } else { md = NA }
+    
+    print( 'modelData' ) ; glimpse( md )
     
     return( md )
   })
@@ -865,7 +878,7 @@ server <- function( input, output, session ) {
           
           m = model()
           
-          f = m %>% forecast( h = model_period , times = 10 ) 
+          f = m %>% forecast( h = model_period ) 
           
           # glimpse( f )
           
