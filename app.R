@@ -674,6 +674,7 @@ server <- function( input, output, session ) {
       if ( input$model %in% 'ETS' ){ 
         m = d %>%
           fill_gaps() %>%
+          mutate( value = ifelse( is.na( value) , 0, value )) %>%
           fabletools::model(. ,  ets = ETS( value ) )  
       }
       
@@ -681,6 +682,7 @@ server <- function( input, output, session ) {
       if ( input$model %in% 'STL' ){ 
         m = d %>%
           fill_gaps() %>%
+          mutate( value = ifelse( is.na( value) , 0, value )) %>%
           fabletools::model(. ,  stl = STL( value  ~ trend( window = 7 )) )  
       }
       
@@ -702,7 +704,10 @@ server <- function( input, output, session ) {
       if ( input$model %in% 'NNETAR' ){ 
         m = d %>%
           fill_gaps() %>%
-          fabletools::model(. , nnetar = NNETAR( box_cox( value, .1 ) ,  period = '7 days'  ) ) 
+          mutate( value = ifelse( is.na( value) , 0, value )) %>%
+          fabletools::model(. , 
+                            nnetar = NNETAR( box_cox( value, .1 ) ,  
+                                             period = '7 days'  ) ) 
       }
       
       # TSLM
